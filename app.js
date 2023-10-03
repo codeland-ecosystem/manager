@@ -81,5 +81,5 @@ app.use(function(err, req, res, next) {
   }
 
   res.status(err.status || 500);
-  res.json({name: err.name, message: err.message});
+  res.json({name: err.name, message: err.message, runner: err.runner && err.runner.name});
 });
