@@ -97,4 +97,4 @@ module.exports = router;
 
 // <service/port>.<runner>.<worker>.<location>.codeland.us
 
-curl -X POST https://718it.codeland.us/api/v1/runner -H "Content-Type: application/json" -d '{"code": "echo \"console.log(\'Hello, Codeland!\');\" | node" }'
+// curl -X POST https://718it.codeland.us/api/v1/runner -H "Content-Type: application/json" -d '{"code": "echo \"console.log(\'Hello, Codeland!\');\" | node" }'
