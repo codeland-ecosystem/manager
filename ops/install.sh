@@ -14,11 +14,10 @@ PROJECT_NAME="cl-manager"
 GIT_URL="https://github.com/codeland-ecosystem/manager.git"
 INSTALL_PATH="/var/www/$PROJECT_NAME"
 INSTALL_USER="root"
-NODE_MAJOR=20
+NODE_MAJOR=18
 
 mkdir -p "$INSTALL_PATH/"
 
-Install nodeJS
 sudo apt-get install -y ca-certificates curl gnupg
 sudo mkdir -p /etc/apt/keyrings
 curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
