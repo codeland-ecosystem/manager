@@ -1,6 +1,6 @@
 #!/bin/bash
 
-apt install -y git curl
+apt install -y git curl sudo
 
 # Stop this script on any error.
 set -e
