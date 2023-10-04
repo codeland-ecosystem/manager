@@ -91,27 +91,16 @@ Before you begin, ensure you have met the following requirements:
    npm install
    ```
 
-## Usage
-
-To use the CodeLand Runner Management System, follow these steps:
-
-1. Configure your SSH and LXC credentials in the appropriate configuration files.
-
-2. Import the necessary classes in your project:
-
-   ```javascript
-   const { Ssh, LXC, CodeLandWorker } = require('./lib/codeland');
-   ```
-
-3. Create instances of the classes and use them to manage and execute code on remote runners.
-
 ## API Documentation
 
-The API documentation provides details on available endpoints, parameters, and responses. You can access the API documentation by visiting the [API Documentation](./API.md) file.
+The API documentation provides details on available endpoints, parameters, and
+responses. You can access the API documentation by visiting the
+[API Documentation](.ops/docs/API.md) file.
 
 ## Contributing
 
-Contributions are welcome! If you'd like to contribute to the project, please follow these guidelines:
+Contributions are welcome! If you'd like to contribute to the project, please
+follow these guidelines:
 
 1. Fork the repository.
 
@@ -127,12 +116,9 @@ Contributions are welcome! If you'd like to contribute to the project, please fo
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE)
+file for details.
 
 ## Acknowledgments
 
-- [ChatGPT](https://chat.openai.com/) for contributing to the documentation and providing assistance with code-related questions.
-```
-
-Feel free to customize this README as needed for your project. Make sure to replace `[Your Name]` with your actual name. If you have any further requests or need additional information, please let me know!
-
+- [ChatGPT](https://chat.openai.com/) for contributing to the documentation.
