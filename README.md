@@ -97,6 +97,7 @@ The API documentation provides details on available endpoints, parameters, and
 responses. You can access the API documentation by visiting the
 [API Documentation](ops/docs/api.md) file.
 
+
 ## Contributing
 
 Contributions are welcome! If you'd like to contribute to the project, please
