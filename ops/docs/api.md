@@ -1,134 +1,197 @@
-Certainly, I've updated the API documentation to reflect that the runner execution result is stored in the `res` field and is base64 encoded. Here are the updated API docs:
+Thank you for the feedback. I'll add back the samples and include the missing runner details in the API documentation. Here's the updated documentation:
 
-### API Version: v1
+---
 
-### Resource: Runner
+# CodeLand API Documentation
 
-#### Get All Runners
-- **URL:** `/api/v1/runner/`
-- **Method:** `GET`
-- **Description:** Retrieve information about all available runners on the worker VM/Server.
-- **Request Body:** None
-- **Query Parameters:**
-  - `detail` (optional): If included, detailed information about each runner will be provided.
-- **Responses:**
-  - `200 OK`: Returns a JSON array containing information about all runners.
-    - Example Response:
-      ```json
+## Overview
+
+The CodeLand API allows you to manage and execute code on remote runners. This documentation outlines the available API endpoints and their functionality.
+
+## Base URL
+
+The base URL for all API endpoints is `/api/v1/runner`.
+
+## Routes
+
+### Execute Code Once on a Runner
+
+- **POST `/api/v1/runner`**
+
+  Execute a code snippet once on a runner.
+
+  **Request Body:**
+  - `code` (string): The code snippet to execute.
+
+  **Query Parameters:**
+  - `time` (integer, optional): Maximum execution time in seconds (default is 60 seconds).
+
+  **Response:**
+  - `res` (string): The result of the code execution in base64 format.
+
+  **Error Codes:**
+  - 503: RunnerNotAvailable - No fresh runners are available at this time.
+  - 498: runnerTimedOut - The execution time exceeded the specified timeout.
+  - 400: runnerExecutionFailed - Execution on the runner failed for unknown reasons.
+
+  This route allows you to execute code quickly on a runner without reusing the runner for subsequent requests. The runner is destroyed after execution to ensure a fresh runner for each request.
+
+  **Sample Request:**
+  ```json
+  {
+    "code": "console.log('Hello, CodeLand!');"
+  }
+  ```
+
+  **Sample Response:**
+  ```json
+  {
+    "res": "SGVsbG8sIENvZGVMYW5kIQ=="
+  }
+  ```
+
+### Retrieve Runner Information
+
+- **GET `/api/v1/runner`**
+
+  Retrieve information about available runners.
+
+  **Query Parameters:**
+  - `detail` (boolean, optional): Include detailed information about each runner (default is false).
+
+  **Response:**
+  - `memory` (object): Memory information of the worker server.
+  - `runners` (array of objects): List of available runners with their names and usage status.
+
+  **Error Codes:**
+  - 503: RunnerNotAvailable - No fresh runners are available at this time.
+
+  **Sample Request:**
+  ```http
+  GET /api/v1/runner
+  ```
+
+  **Sample Response:**
+  ```json
+  {
+    "memory": {
+      "total": "4.86 KiB",
+      "available": "4.75 KiB",
+      "used": "0.11 KiB",
+      "percent": 2.27
+    },
+    "runners": [
       {
-        "memory": {
-          "total": 4096,
-          "available": 2048,
-          "used": 2048,
-          "percent": 50
-        },
-        "runners": [
-          {
-            "name": "runner1",
-            "inUse": false,
-            "details": {
-              // Runner details if 'detail' query parameter is included
-            }
-          },
-          {
-            "name": "runner2",
-            "inUse": true,
-            "details": {
-              // Runner details if 'detail' query parameter is included
-            }
-          },
-          // Additional runners...
-        ]
-      }
-      ```
-  - `500 Internal Server Error`: If there is an internal server error.
-
-#### Create a New Runner
-- **URL:** `/api/v1/runner/`
-- **Method:** `POST`
-- **Description:** Create a new runner and execute code on it.
-- **Request Body:**
-  - `code` (required): The code to be executed on the new runner.
-- **Query Parameters:**
-  - `time` (optional): Maximum execution time for the code (in seconds).
-- **Responses:**
-  - `200 OK`: Returns the result of code execution on the new runner in base64 encoded format under the `res` field.
-    - Example Response:
-      ```json
+        "name": "runner-1",
+        "inUse": false,
+        "state": "RUNNING",
+        "pid": "1172779",
+        "ip": "172.16.118.41",
+        "memory": "44.23 MiB",
+        "kmem": "8.36 MiB",
+        "link": "veth1001_8xz8",
+        "tx": "1.29 KiB",
+        "rx": "3.57 KiB",
+        "total": "4.86 KiB"
+      },
       {
-        "res": "base64_encoded_result"
+        "name": "runner-2",
+        "inUse": true
       }
-      ```
-  - `400 Bad Request`: If the request is missing the `code` parameter.
-  - `503 Service Unavailable`: If there are no available runners at the moment (as defined by `errors.runnerNotAvailable`).
-  - `498 Request Timeout`: If the code execution exceeds the specified time limit (as defined by `errors.runnerTimedOut`).
-  - `500 Internal Server Error`: If there is an internal server error.
+    ]
+  }
+  ```
 
-#### Create a New Runner (Alternative)
-- **URL:** `/api/v1/runner/new`
-- **Method:** `POST`
-- **Description:** Create a new runner and execute code on it. This endpoint is an alternative to the previous one.
-- **Request Body:**
-  - `code` (required): The code to be executed on the new runner.
-- **Responses:**
-  - `200 OK`: Returns the result of code execution on the new runner in base64 encoded format under the `res` field along with the runner's name.
-    - Example Response:
-      ```json
-      {
-        "runner": "runner3",
-        "res": "base64_encoded_result"
-      }
-      ```
-  - `400 Bad Request`: If the request is missing the `code` parameter.
-  - `503 Service Unavailable`: If there are no available runners at the moment (as defined by `errors.runnerNotAvailable`).
-  - `498 Request Timeout`: If the code execution exceeds the specified time limit (as defined by `errors.runnerTimedOut`).
-  - `500 Internal Server Error`: If there is an internal server error.
+### Create a New Runner
 
-#### Execute Code on a Specific Runner
-- **URL:** `/api/v1/runner/:runner`
-- **Method:** `POST`
-- **Description:** Execute code on a specific runner identified by its name.
-- **Request Body:**
-  - `code` (required): The code to be executed on the specified runner.
-- **Responses:**
-  - `200 OK`: Returns the result of code execution on the specified runner in base64 encoded format under the `res` field.
-    - Example Response:
-      ```json
-      {
-        "res": "base64_encoded_result"
-      }
-      ```
-  - `404 Not Found`: If the specified runner does not exist (as defined by `errors.runnerNotFound`).
-  - `500 Internal Server Error`: If there is an internal server error.
+- **POST `/api/v1/runner/new`**
 
-#### Get Runner Information
-- **URL:** `/api/v1/runner/:runner`
-- **Method:** `GET`
-- **Description:** Retrieve information about a specific runner identified by its name.
-- **Responses:**
-  - `200 OK`: Returns detailed information about the specified runner.
-    - Example Response:
-      ```json
-      {
-        // Runner details
-      }
-      ```
-  - `404 Not Found`: If the specified runner does not exist (as defined by `errors.runnerNotFound`).
-  - `500 Internal Server Error`: If there is an internal server error.
+  Create a new runner.
 
-#### Delete Runner
-- **URL:** `/api/v1/runner/:runner`
-- **Method:** `DELETE`
-- **Description:** Delete a specific runner identified by its name.
-- **Responses:**
-  - `200 OK`: Returns a success message indicating that the runner was successfully deleted.
-    - Example Response:
-      ```json
-      {
-        "res": "success"
-      }
-      ```
-  - `404 Not Found`: If the specified runner does not exist (as defined by `errors.runnerNotFound`).
-  - `500 Internal Server Error`: If there is an internal server error.
+  **Request Body:**
+  - `code` (string): Initial code to execute on the new runner.
 
-This API allows you to manage runners on the worker VM/Server, execute code on them, and retrieve information about their status and usage. It also includes appropriate error handling based on the `CodeLandWorker` class's error definitions, with runner execution results stored in the `res` field in base64 encoded format.
+  **Response:**
+  - `res` (string): The result of the initial code execution in base64 format.
+  - `runner` (string): The name of the new runner.
+
+  **Error Codes:**
+  - 503: RunnerNotAvailable - No fresh runners are available at this time.
+
+  **Sample Request:**
+  ```json
+  {
+    "code": "console.log('Initializing new runner');"
+  }
+  ```
+
+  **Sample Response:**
+  ```json
+  {
+    "res": "SW5pdGlhbGl6aW5nIG5ldyBydW5uZXI="
+    "runner": "runner-3"
+  }
+  ```
+
+### Retrieve Runner Information by Name
+
+- **GET `/api/v1/runner/:runner`**
+
+  Retrieve information about a specific runner by name.
+
+  **Response:**
+  - Runner information.
+
+  **Error Codes:**
+  - 503: RunnerNotAvailable - No fresh runners are available at this time.
+  - 404: runnerNotFound - The requested runner does not exist.
+
+  **Sample Request:**
+  ```http
+  GET /api/v1/runner/runner-1
+  ```
+
+  **Sample Response:**
+  ```json
+  {
+    "name": "runner-1",
+    "state": "RUNNING",
+    "pid": "1172779",
+    "ip": "172.16.118.41",
+    "memory": "44.23 MiB",
+    "kmem": "8.36 MiB",
+    "link": "veth1001_8xz8",
+    "tx": "1.29 KiB",
+    "rx": "3.57 KiB",
+    "total": "4.86 KiB"
+  }
+  ```
+
+### Delete a Runner
+
+- **DELETE `/api/v1/runner/:runner`**
+
+  Delete a specific runner by name.
+
+  **Response:**
+  - `{ "res": "success" }`
+
+  **Error Codes:**
+  - 503: RunnerNotAvailable - No fresh runners are available at this time.
+  - 404: runnerNotFound - The requested runner does not exist.
+
+  **Sample Request:**
+  ```http
+  DELETE /api/v1/runner/runner-3
+  ```
+
+  **Sample Response:**
+  ```json
+  {
+    "res": "success"
+  }
+  ```
+
+---
+
+I've added the samples and included the missing runner details in the API documentation. Please review it and let me know if there are any further adjustments or clarifications needed.
