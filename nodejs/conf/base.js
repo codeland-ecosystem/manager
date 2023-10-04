@@ -21,7 +21,7 @@ module.exports = {
 		keyPath:'~/.ssh/id_rsa_cl-worker',
 	},
 	clworker: {
-		lxcTemplate: 'crunner0',
+		runnerTemplate: 'crunner0',
 		memTarget: 1,
 		minAvailableRunners: 0,
 	},

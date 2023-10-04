@@ -19,6 +19,7 @@ class Ssh extends Exec{
 	async exec(command){
 		command = new Buffer.from(command).toString('base64');
 		command = `ssh -i "${this.keyPath}" -o StrictHostKeyChecking=no ${this.user}@${this.host} "echo ${command} | base64 --decode | bash"`;
+		
 		return await super.exec(command);
 	}
 }

@@ -39,6 +39,7 @@ const middleware = require('./middleware/auth');
 // load the JSON parser middleware. Express will parse JSON into native objects
 // for any request that has JSON in its content type. 
 app.use(express.json());
+app.set('json spaces', 2);
 
 // Set up the templating engine to build HTML for the front end.
 app.set('views', path.join(__dirname, 'views'));
@@ -48,8 +49,11 @@ app.set('view engine', 'ejs');
 // local folder.
 app.use('/static', express.static(path.join(__dirname, 'public')))
 
-// // Routes for front end content.
+// Routes for front end content.
 app.use('/', require('./routes/index'));
+
+// API route
+app.use('/api/v1', require('./routes/api_v1'));
 
 // // API routes for authentication. 
 // app.use('/api/auth',  require('./routes/auth'));
@@ -81,5 +85,9 @@ app.use(function(err, req, res, next) {
   }
 
   res.status(err.status || 500);
-  res.json({name: err.name, message: err.message, runner: err.runner && err.runner.name});
+  res.json({
+    name: err.name,
+    message: err.message,
+    runner: err.runner && err.runner.name
+  });
 });

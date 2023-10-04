@@ -1,9 +1,10 @@
-var express = require('express');
-var router = express.Router();
-var {Ssh, CodeLandWorker} = require('../lib/codeland');
+'use strict';
+
+const router = require('express').Router();
+const {Ssh, CodeLandWorker} = require('../lib/codeland');
 const conf = require('../conf')
 
-let ssh = new Ssh(conf.ssh);
+const ssh = new Ssh(conf.ssh);
 var clworker;
 
 (async function(){
@@ -13,13 +14,33 @@ var clworker;
 })()
 
 
-router.post('/run', async function(req, res, next){
+router.get('/run', async(req, res, next)=>{
+  try{
+    const runners = []
+  
+    for(const [name, runner] of Object.entries(clworker.__runners)){
+      runners.push({
+        name: name,
+        inUse: !!runner.inUse,
+        ...'detail' in req.query ? await runner.info() : undefined,
+      });
+    }
+  
+    return res.json({
+      memory: await clworker.memory(),
+      runners: runners
+      });
+  }catch(error){
+    next(error)
+  }
+});
+
+router.post('/run', async (req, res, next)=>{
   try{
     let time = Number.isInteger(Number(req.query.time)) ? req.query.time : undefined;
     let result = await clworker.runnerRunOnce(req.body.code, time);
     res.json(result);  
   }catch(error){
-    console.log('post run error', error)
     next(error)
   }
 });
@@ -73,3 +94,6 @@ router.delete('/run/:runner', async (req, res, next)=>{
 
 
 module.exports = router;
+
+
+// <service/port>.<runner>.<worker>.<location>.codeland.us
