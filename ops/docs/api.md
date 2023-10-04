@@ -13,11 +13,12 @@ The base URL for all API endpoints is `/api/v1/runner`.
 
 ## Routes
 
-### Execute Code Once on a Runner
+### Execute Code Once on a trow-away Runner
 
-- **POST `/api/v1/runner`**
+- **POST `/api/v1/runner/run`**
 
-  Execute a code snippet once on a runner.
+  Execute a code snippet once on a runner. Once the code is done executing, the
+  runner will be destroyed for ever!
 
   **Request Body:**
   - `code` (string): The code snippet to execute.
@@ -49,63 +50,11 @@ The base URL for all API endpoints is `/api/v1/runner`.
   }
   ```
 
-### Retrieve Runner Information
-
-- **GET `/api/v1/runner`**
-
-  Retrieve information about available runners.
-
-  **Query Parameters:**
-  - `detail` (boolean, optional): Include detailed information about each runner (default is false).
-
-  **Response:**
-  - `memory` (object): Memory information of the worker server.
-  - `runners` (array of objects): List of available runners with their names and usage status.
-
-  **Error Codes:**
-  - 503: RunnerNotAvailable - No fresh runners are available at this time.
-
-  **Sample Request:**
-  ```http
-  GET /api/v1/runner
-  ```
-
-  **Sample Response:**
-  ```json
-  {
-    "memory": {
-      "total": "4.86 KiB",
-      "available": "4.75 KiB",
-      "used": "0.11 KiB",
-      "percent": 2.27
-    },
-    "runners": [
-      {
-        "name": "runner-1",
-        "inUse": false,
-        "state": "RUNNING",
-        "pid": "1172779",
-        "ip": "172.16.118.41",
-        "memory": "44.23 MiB",
-        "kmem": "8.36 MiB",
-        "link": "veth1001_8xz8",
-        "tx": "1.29 KiB",
-        "rx": "3.57 KiB",
-        "total": "4.86 KiB"
-      },
-      {
-        "name": "runner-2",
-        "inUse": true
-      }
-    ]
-  }
-  ```
-
 ### Create a New Runner
 
 - **POST `/api/v1/runner/new`**
 
-  Create a new runner.
+  Create a new runner persistent runner. 
 
   **Request Body:**
   - `code` (string): Initial code to execute on the new runner.
@@ -127,7 +76,7 @@ The base URL for all API endpoints is `/api/v1/runner`.
   **Sample Response:**
   ```json
   {
-    "res": "SW5pdGlhbGl6aW5nIG5ldyBydW5uZXI="
+    "res": "SW5pdGlhbGl6aW5nIG5ldyBydW5uZXI=",
     "runner": "runner-3"
   }
   ```
@@ -191,6 +140,57 @@ The base URL for all API endpoints is `/api/v1/runner`.
   }
   ```
 
----
+### Retrieve list of all Runner Information
 
-I've added the samples and included the missing runner details in the API documentation. Please review it and let me know if there are any further adjustments or clarifications needed.
+- **GET `/api/v1/runner`**
+
+  Retrieve information about available runners.
+
+  **Query Parameters:**
+  - `detail` (boolean, optional): Include detailed information about each runner
+     (default is false). **This may take some time**
+
+  **Response:**
+  - `memory` (object): Memory information of the worker server.
+  - `runners` (array of objects): List of available runners with their names 
+    and usage status.
+
+  **Error Codes:**
+    This should always at lest return the information
+
+  **Sample Request:**
+  ```http
+  GET /api/v1/runner
+  ```
+
+  **Sample Response:**
+  ```json
+  {
+    "memory": {
+      "total": "4.86 KiB",
+      "available": "4.75 KiB",
+      "used": "0.11 KiB",
+      "percent": 2.27
+    },
+    "runners": [
+      {
+        "name": "runner-1",
+        "inUse": false,
+        "state": "RUNNING",
+        "pid": "1172779",
+        "ip": "172.16.118.41",
+        "memory": "44.23 MiB",
+        "kmem": "8.36 MiB",
+        "link": "veth1001_8xz8",
+        "tx": "1.29 KiB",
+        "rx": "3.57 KiB",
+        "total": "4.86 KiB"
+      },
+      {
+        "name": "runner-2",
+        "inUse": true
+      }
+    ]
+  }
+  ```
+

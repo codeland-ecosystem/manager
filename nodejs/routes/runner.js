@@ -14,7 +14,7 @@ var clworker;
 })()
 
 
-router.get('/run', async(req, res, next)=>{
+router.get('/', async(req, res, next)=>{
   try{
     const runners = []
   
@@ -45,7 +45,7 @@ router.post('/run', async (req, res, next)=>{
   }
 });
 
-router.post('/run/new', async (req, res, next)=>{
+router.post('/new', async (req, res, next)=>{
   let runner;
   try{
     runner = clworker.runnerPop();
@@ -57,7 +57,7 @@ router.post('/run/new', async (req, res, next)=>{
   }
 });
 
-router.post('/run/:runner', async (req, res, next)=>{
+router.post('/:runner', async (req, res, next)=>{
   let runner;
   try{
     runner = clworker.runnerGetByName(req.params.runner);
@@ -69,7 +69,7 @@ router.post('/run/:runner', async (req, res, next)=>{
   }
 });
 
-router.get('/run/:runner', async (req, res, next)=>{
+router.get('/:runner', async (req, res, next)=>{
   let runner;
   try{
     runner = clworker.runnerGetByName(req.params.runner);
@@ -80,7 +80,7 @@ router.get('/run/:runner', async (req, res, next)=>{
   }
 });
 
-router.delete('/run/:runner', async (req, res, next)=>{
+router.delete('/:runner', async (req, res, next)=>{
   let runner;
   try{
     runner = clworker.runnerGetByName(req.params.runner);
@@ -92,8 +92,9 @@ router.delete('/run/:runner', async (req, res, next)=>{
   }
 });
 
-
 module.exports = router;
 
 
 // <service/port>.<runner>.<worker>.<location>.codeland.us
+
+curl -X POST https://718it.codeland.us/api/v1/runner -H "Content-Type: application/json" -d '{"code": "echo \"console.log(\'Hello, Codeland!\');\" | node" }'
