@@ -1,12 +1,11 @@
-Thank you for the feedback. I'll add back the samples and include the missing runner details in the API documentation. Here's the updated documentation:
-
----
-
 # CodeLand API Documentation
 
 ## Overview
 
-The CodeLand API allows you to manage and execute code on remote runners. This documentation outlines the available API endpoints and their functionality.
+The CodeLand API allows you to manage and execute code on remote runners. This 
+documentation outlines the available API endpoints and their functionality.
+
+This document was generated with chatPT.
 
 ## Base URL
 
