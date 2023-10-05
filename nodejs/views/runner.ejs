@@ -1,0 +1,179 @@
+<%- include('top') %>
+<script id="rowTemplate" type="text/html">
+	<p>
+	<div class="card shadow">
+		<div class="card-header">
+			<i class="fad fa-users-class"></i>
+			<b>Topic:</b> {{ topic }}
+		</div>
+		<div class="card-body">
+			{{ data }}
+		</div>
+	</div>
+	</p>
+</script>
+
+<script type="text/javascript">
+
+	function formatBytes(bytes, decimals = 2) {
+	    if (!+bytes) return '0 Bytes'
+
+	    const k = 1024
+	    const dm = decimals < 0 ? 0 : decimals
+	    const sizes = ['Bytes', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+
+	    const i = Math.floor(Math.log(bytes) / Math.log(k))
+
+	    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+	}
+
+	function parseMemory(memory){
+		return {
+			total: formatBytes((memory.total*1000)),
+			available: formatBytes(memory.available*1000),
+			used: formatBytes(memory.used*1000),
+			percent: Math.floor(memory.percent),
+		}
+	}
+
+	$(document).ready(function(){
+		$.scope.runnersAvailable.__index = 'name';
+		$.scope.runnersInUse.__index = 'name';
+
+		  // set up animation for adding to taks list
+		$.scope.runnersAvailable.__put = function(){
+		    this.slideDown( 'fast' );
+		};
+
+		// set up animation for removing taks from list
+		$.scope.runnersAvailable.__take = function(){
+			this.slideUp( 'slow', function(){
+				this.remove();
+			});
+		};
+
+		// set up animation for adding to taks list
+		$.scope.runnersInUse.__put = function(){
+		    this.slideDown( 'slow' );
+		};
+
+		// set up animation for removing taks from list
+		$.scope.runnersInUse.__take = function(){
+			this.slideUp( 'slow', function(){
+				this.remove();
+			});
+		};
+
+		app.api.get('runner', function(err, data){
+			$.scope.workerInfomation.push(parseMemory(data.memory));
+			for(runner of data.runners){
+				if(runner.inUse){
+					$.scope.runnersInUse.push(runner)
+				}else{
+					$.scope.runnersAvailable.push(runner)
+				}
+			}
+		})
+
+		app.subscribe('cl:worker:runner:new', function(data, topic){
+			console.log(topic, data)
+			$.scope.runnersAvailable.push({name: data.runner})
+		});
+
+		app.subscribe('cl:worker:runner:inUse', function(data, topic){
+			console.log(topic, data)
+			$.scope.runnersAvailable.splice(data.runner, 1)
+			$.scope.runnersInUse.push({name: data.runner})
+		});
+
+		app.subscribe('cl:worker:runner:free', function(data, topic){
+			console.log(topic, data)
+			var $el = $('#runner-'+data.runner);
+			$el.removeClass('list-group-item-success list-group-item-primary')
+			$el.addClass('list-group-item-danger')
+		});
+
+		app.subscribe('cl:worker:runner:free:success', function(data, topic){
+			console.log(topic, data)
+			$.scope.runnersAvailable.splice(data.runner, 1)
+			$.scope.runnersInUse.splice(data.runner, 1)
+		});
+
+		app.subscribe('cl:worker:memory', function(data, topic){
+			console.log(topic, data)
+			$.scope.workerInfomation.update(0, parseMemory(data));
+		});
+
+
+		// app.subscribe(/./g, function(data, topic){
+		// 	var rowTemplate = $('#rowTemplate').html();
+		// 	var $target = $('#tableAJAX');
+
+		// 	user_row = Mustache.render(rowTemplate, {topic, data: JSON.stringify(data)});
+		// 	$target.append(user_row);
+		// 	$target.fadeIn('slow');
+		// });
+	});
+</script>
+<div class="row" style="display:none">
+
+	<div class="col-md-4">
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fas fa-layer-plus"></i>
+				Worker Information
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<div class="card-body" jq-repeat="workerInfomation">
+				Total Memory: <b>{{total}}</b> <br/>
+				Used Memory: <b>{{used}}</b> <br/>
+				<div class="progress">
+				  <div class="progress-bar" role="progressbar" style="width: {{percent}}%;" aria-valuenow="{{percent}}" aria-valuemin="0" aria-valuemax="100">{{percent}}%</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<div class="col-md-4">
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fas fa-layer-plus"></i>
+				Available
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<div class="card-body">
+
+				<ul class="list-group">
+					<li id="runner-{{name}}" jq-repeat="runnersAvailable" class="list-group-item list-group-item-primary" style="display:none">
+						{{name}}
+					</li>
+				</ul>
+
+			</div>
+		</div>
+	</div>
+
+	<div class="col-md-4">
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fas fa-layer-plus"></i>
+				In use
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<div class="card-body">
+
+				<ul class="list-group">
+					<li id="runner-{{name}}" jq-repeat="runnersInUse" class="list-group-item list-group-item-success" style="display:none">
+						{{name}}
+					</li>
+				</ul>
+
+			</div>
+		</div>
+	</div>
+
+
+
+</div>
+<%- include('bottom') %>

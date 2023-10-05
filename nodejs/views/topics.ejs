@@ -1,0 +1,88 @@
+<%- include('top') %>
+<script id="rowTemplate" type="text/html">
+	<p>
+	<div class="card shadow">
+		<div class="card-header">
+			<i class="fad fa-users-class"></i>
+			<b>Topic:</b> {{ topic }}
+		</div>
+		<div class="card-body">
+			{{ data }}
+		</div>
+	</div>
+	</p>
+</script>
+
+<script type="text/javascript">
+
+	var publishTopic = function(btn){
+		event.preventDefault(); // avoid to execute the actual submit of the form.
+		var $form = $(btn).closest( '[action]' ); // gets the 'form' parent
+		var formData = $form.find( '[name]' ).serializeObject(); 
+
+		if( !$form.validate()) {
+			app.util.actionMessage('Please fix the form errors.', $form, 'danger')
+			return false;
+		}
+
+		app.publish(formData.topic, JSON.parse(formData.data))
+		$form.trigger("reset");
+		app.util.actionMessage('Topic '+formData.topic+' published!', $form, 'success'); //re-populate table
+
+	};
+
+	$(document).ready(function(){
+		app.subscribe(/./g, function(data, topic){
+			var rowTemplate = $('#rowTemplate').html();
+			var $target = $('#tableAJAX');
+
+			user_row = Mustache.render(rowTemplate, {topic, data: JSON.stringify(data)});
+			$target.append(user_row);
+			$target.fadeIn('slow');
+
+
+		});
+
+	});
+</script>
+<div class="row" style="display:none">
+	<div class="col-md-4">
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fas fa-layer-plus"></i>
+				Publish
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<div class="card-body">
+				<form action="group/" method="post" onsubmit="publishTopic(this)">
+					<div class="form-group">
+						<label class="control-label">Topic</label>
+						<input type="text" class="form-control shadow" name="topic" placeholder="app_gitea_admin" validate=":3" />
+					</div>
+
+					<div class="form-group">
+						<label class="control-label">JSON</label>
+						<textarea class="form-control shadow" name="data" placeholder="{...}" validate=":3"></textarea>
+					</div>
+
+					<button type="submit" class="btn btn-outline-dark">Publish</button>
+				</form>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-8">
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fad fa-users-class"></i>
+				Incoming Topics
+			</div>
+			<div class="card-header actionMessage" style="display:none">
+			</div>
+			<div class="card-body">
+				<div class="" id="tableAJAX">
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<%- include('bottom') %>

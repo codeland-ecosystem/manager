@@ -50,7 +50,7 @@ app.set('view engine', 'ejs');
 app.use('/static', express.static(path.join(__dirname, 'public')))
 
 // Routes for front end content.
-app.use('/', require('./routes/index'));
+app.use('/', require('./routes/render'));
 
 // API route
 app.use('/api/v1', require('./routes/api_v1'));

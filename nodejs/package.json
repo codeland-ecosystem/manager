@@ -14,7 +14,9 @@
     "extend": "^3.0.2",
     "http-errors": "~1.6.3",
     "ldapts": "^6.0.0",
+    "moment": "^2.29.4",
     "morgan": "~1.9.1",
+    "mustache": "^4.2.0",
     "p2psub": "^0.1.9",
     "redis": "^4.6.10",
     "socket.io": "^4.7.2"

@@ -1,7 +1,7 @@
 'use strict';
 
 const {Client, Attribute} = require('ldapts');
-const conf = require('../app').conf.ldap;
+const conf = require('../conf').ldap;
 
 const client = new Client({
   url: conf.url,

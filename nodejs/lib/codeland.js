@@ -4,6 +4,7 @@ const axios = require('axios');
 const { Ssh } = require('./ssh');
 const { LXC } = require('./lxc');
 const conf = require('../conf')
+const ps = require('../controller/pubsub.js'); 
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -52,6 +53,11 @@ class CodeLandWorker{
 		},
 	}
 
+	__log(topic, message){
+		ps.publish(`cl:worker:${topic}`, message);
+		console.log(topic, ...Object.entries(message).map(([k, v]) => `${k}: ${v}`));
+	}
+
 	/*
 		In order to guarantee the passed LXC template is valid, we must make
 		async calls, so this the the correct method to make new Code land
@@ -85,6 +91,9 @@ class CodeLandWorker{
 		// How many runners should be created regardless of memory usage
 		this.minAvailableRunners = args.minAvailableRunners || 3;
 
+		//
+		this.pubsun = ps
+
 		// Hold the list of current runners
 		this.__runners = {};
 
@@ -105,6 +114,13 @@ class CodeLandWorker{
 		let used = total - available;
 		let percent = (used/total)*100;
 
+		this.__log('memory', {
+			total,
+			available,
+			used,
+			percent,
+		});
+
 		return {
 			total,
 			available,
@@ -112,7 +128,6 @@ class CodeLandWorker{
 			percent,
 		}
 	}
-
 
 	/*
 		getCurrentCopies and deleteUntracedRunners clean up zombie runners from
@@ -137,8 +152,15 @@ class CodeLandWorker{
 	async deleteUntracedRunners(){
 		for(let [name, runner] of Object.entries(await this.getCurrentCopies())){
 			if(!this.__runners[name]){
-				console.log('deleting', name)
-				await runner.destroy();
+				// this.__log('runner:delete', {
+				// 	runner: name,
+				// 	reason: 'zombie'
+				// })
+				// await runner.destroy();
+
+				this.runnerFree(runner, false)
+				await sleep(1000);
+
 			}
 		}
 	}
@@ -157,6 +179,10 @@ class CodeLandWorker{
 		while(!(await runner.info()).ip) await sleep(250);
 
 		this.__runnersOnBackBunner--;
+		
+		this.__log('runner:new', {
+			runner: runner.name
+		});
 		return runner;
 	}
 
@@ -172,13 +198,28 @@ class CodeLandWorker{
 		let errorCount = 0;
 		while(true){
 			let memory = await this.memory()
+			let message = {
+					runnersOnBackBunner: this.__runnersOnBackBunner,
+					AvailableRunners: Object.keys(this.__runners).length,
+			}
+
 			if(this.__runnersOnBackBunner > this.minAvailableRunners){
-				console.log('runnerFill, stopping to many in the oven', this.__runnersOnBackBunner)
+				this.__log('runner:fill:stop', {
+					...message,
+					message: `stopping to many in the oven`
+				});
 				break;
 			}else if(this.minAvailableRunners > Object.keys(this.__runners).length){
-				console.log('runnerFill Not enough runners, forcing to make more', this.minAvailableRunners, Object.keys(this.__runners).length)
+				this.__log('runner:fill:start', {
+					...message,
+					message: 'Not enough runners, forcing to make more'
+				});
+
 			}else if(memory.percent > this.memTarget) {
-				console.log('runnerFill stopping above memory percent', memory.percent)
+				this.__log('runner:fill:start', {
+					...message,
+					message: 'stopping above memory percent'
+				});
 				break
 			}
 
@@ -188,11 +229,20 @@ class CodeLandWorker{
 
 				for(let runner of runners){
 					this.__runners[runner.name] = runner;
-					console.log(`created ${runner.name} runner for fill, count now ${Object.keys(this.__runners).length}`);
 
+					this.__log('runner:fill:success', {
+						...message,
+						message: `created ${runner.name} runner for fill, count now ${Object.keys(this.__runners).length}`
+					});
+					break
 				}
 			}catch(error){
-				console.error('runnerFill error, count', ++errorCount, error);
+				this.__log('runner:fill:error', {
+					...message,
+					message: `error count ${errorCount}`,
+					error: error
+				});
+
 				continue;
 			}
 			await sleep(250);
@@ -204,27 +254,36 @@ class CodeLandWorker{
 		free its resources. runnerFill is called to make check if a
 		replenishment is required 
 	*/
-	async runnerFree(runner){
-		console.log('runnerFree', runner ? runner.name : '')
+	async runnerFree(runner, fill=true){
+		this.__log('runner:free', {
+			message: `Freeing runner`,
+			runner: runner ? runner.name : ''
+		});
+
 		if(!(runner instanceof LXC)){
-			console.log('runnerFree called on bad runner?', runner)
+			this.__log('runner:free:error:badInstance', {
+				error: `runner not instanceof LXC`,
+				runner: runner
+			});
+
 			if(this.__runners[runner]) delete this.__runners[runner];
 			return false;
 		}
+		let name = runner.name;
 
-		if(!this.__runners[runner.name]){
-			console.log('runnerFree runner not found', runner.name)
-			runner.destroy();
-			return false;
+		if(this.__runners[runner.name]){
+			delete this.__runners[name];
 		}
 
-		let name = runner.name;
 		if(runner.hasOwnProperty('timeout')){
 			clearTimeout(runner.timeout);
 		}
-		delete this.__runners[name];
 		await runner.destroy();
-		this.runnerFill()
+		if(fill) this.runnerFill();
+		this.__log('runner:free:success', {
+			message: `done`,
+			runner: name
+		});
 	}
 
 	/*
@@ -234,6 +293,12 @@ class CodeLandWorker{
 		for(let [name, runner] of Object.entries(this.__runners)){
 			if(!runner.inUse){
 				runner.inUse = true;
+
+				this.__log('runner:inUse', {
+					message: `This runner has moved to be in use`,
+					runner: runner ? runner.name : ''
+				});
+
 				return runner
 			}
 		}

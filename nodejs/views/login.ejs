@@ -1,0 +1,53 @@
+<%- include('top') %>
+<script type="text/javascript">
+
+	app.auth.isLoggedIn(function(error, isLoggedIn){
+		if(isLoggedIn){
+			window.location.href = app.util.getUrlParameter('redirect') || '/topics';
+		}
+	})
+
+	$(document).ready(function(){
+
+	});
+</script>
+
+<div class="row">
+	<div class="card-deck">
+		<div class="shadow-lg card mb-3">
+			<div class="card-header shadow">
+				Password Log in
+			</div>
+			<div class="card-header shadow actionMessage" style="display:none">
+			</div>
+			<div class="card-body">
+				<form action="auth/login" onsubmit="formAJAX(this)" evalAJAX="app.auth.setToken(data.token);window.location.href = app.util.getUrlParameter('redirect') || '/';">
+					<input type="hidden" name="redirect" value="<%= redirect %>">
+
+					<div class="form-group">
+						<label class="control-label">User name</label>
+						<div class="input-group mb-3 shadow">
+						  <div class="input-group-prepend">
+						    <span class="input-group-text" ><i class="fad fa-user"></i></span>
+						  </div>
+							<input type="text" name="uid" class="form-control" placeholder="jsmith" validate="user:3" />
+						</div>
+					</div>
+
+					<div class="form-group">
+						<label class="control-label">Password</label>
+						<div class="input-group mb-3 shadow">
+						  <div class="input-group-prepend">
+						    <span class="input-group-text" ><i class="fad fa-key"></i></span>
+						  </div>
+							<input type="password" name="password" class="form-control" placeholder="hunter123!" validate=":3" />
+						</div>
+					</div>
+
+					<button type="submit" class="btn btn-outline-dark"><i class="fad fa-sign-in"></i> Log in</button>
+				</form>
+			</div>
+		</div>
+	</div>
+</div>
+<%- include('bottom') %>

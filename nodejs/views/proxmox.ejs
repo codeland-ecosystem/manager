@@ -1,0 +1,226 @@
+<%- include('top') %>
+<script type="text/javascript">
+
+	function formatBytes(a,b=2){if(0===a)return"0 Bytes";const c=0>b?0:b,d=Math.floor(Math.log(a)/Math.log(1024));return parseFloat((a/Math.pow(1024,d)).toFixed(c))+" "+["Bytes","KB","MB","GB","TB","PB","EB","ZB","YB"][d]}
+
+
+	var parseNodeData = function(data){
+		data.siteId = data.vpnSite.id;
+		cluster = data.data
+		cluster.onlineCount = 0;
+		cluster.cpu = 0
+		cluster.maxcpu = 0
+		cluster.maxmem = 0
+		cluster.mem = 0
+
+
+		for(let node of data.data.node){
+			// console.log('parse', node)
+			if(node.status === "offline") continue;
+			cluster.onlineCount++
+			cluster.cpu += node.cpu
+			cluster.maxcpu += node.maxcpu
+			cluster.maxmem += node.maxmem
+			cluster.mem += node.mem
+		}
+
+		cluster.nodePercent = Math.ceil((cluster.onlineCount*100)/data.data.node.length)
+		cluster.cpu = parseFloat(((cluster.cpu/cluster.onlineCount)*100).toFixed(2));
+		cluster.memPercent = Math.ceil((cluster.mem*100)/cluster.maxmem)
+		cluster.maxmem = formatBytes(cluster.maxmem)
+		cluster.mem = formatBytes(cluster.mem)
+
+
+		$.extend(data.data, cluster);
+
+		return data;
+	}
+
+
+	$(document).ready(function(){
+		$.scope.proxmox.__put = function(obj){
+			console.log(obj)
+			if(obj.openTab){
+				$(obj.openTab).tab('show');
+			}
+			this.show()
+		};
+		$
+		app.subscribe('proxmox-cluster', function(data){
+			if($.scope.proxmox.indexOf('siteId', data.vpnSite.id,) == -1){
+				data.siteId = data.vpnSite.id;
+				let index = $.scope.proxmox.push(parseNodeData(data));
+			}else{
+				$.scope.proxmox.update('siteId', data.vpnSite.id, parseNodeData(data));
+			}
+		});
+
+		$(document).ready(function(){
+		    $('div.prox-cards').on('click', 'a[data-toggle="tab"]', function(e){
+		        e.preventDefault();
+		        var id = $(this).closest('div[data-siteid]').data('siteid');
+		        var scopeId = $.scope.proxmox.indexOf('siteId', id+'');
+		        var tab = '#'+$(this).attr('id');
+		        $.scope.proxmox[scopeId].openTab = tab;
+		    });
+		});
+	});
+</script>
+<style type="text/css">
+	.card-columns {
+	   column-count: 2;
+	  @include media-breakpoint-only(lg) {
+	  }
+</style>
+
+<div class="prox-cards card-columns">
+	<div class="shadow-lg card" jq-repeat="proxmox" data-siteid='{{vpnSite.id}}'>
+		<div class="card-header" >
+			<h3>
+				{{ vpnSite.name }}
+				<small class="text-muted">{{vpnSite.admin}}</small>
+			</h3>
+
+			<ul class="nav nav-tabs card-header-tabs" id="myTab" role="tablist">
+				<li class="nav-item">
+					<a class="nav-link active" id="nodes-tab-{{vpnSite.id}}" data-toggle="tab" href="#nodes-{{vpnSite.id}}" role="tab" aria-controls="home" aria-selected="true">
+						Nodes
+					</a>
+				</li>
+				<li class="nav-item">
+					<a class="nav-link" id="lxc-tab-{{vpnSite.id}}" data-toggle="tab" href="#lxc-{{vpnSite.id}}" role="tab" aria-controls="profile" aria-selected="false">
+						LXC
+					</a>
+				</li>
+				<li class="nav-item">
+					<a class="nav-link" id="kvm-tab-{{vpnSite.id}}" data-toggle="tab" href="#kvm-{{vpnSite.id}}" role="tab" aria-controls="contact" aria-selected="false">
+						KVM
+					</a>
+				</li>
+				<li class="nav-item">
+					<a class="nav-link" id="storage-tab-{{vpnSite.id}}" data-toggle="tab" href="#storage-{{vpnSite.id}}" role="tab" aria-controls="contact" aria-selected="false">
+						Storage
+					</a>
+				</li>
+			</ul>
+		</div>
+		<div class="card-header actionMessage" style="display:none">
+		</div>
+		<div class="card-body">
+			<table>
+				<tr>
+					<td>
+						Nodes
+					</td>
+					<td>
+						<div class="progress">
+						  <div class="progress-bar" role="progressbar" style="width: {{data.nodePercent}}%;" aria-valuenow="{{data.nodePercent}}" aria-valuemin="0" aria-valuemax="100">{{data.nodePercent}}%</div>
+						</div>
+					</td>
+					<td>
+						{{data.node.length}}
+					</td>
+				</tr>
+				<tr>
+					<td>
+						CPU
+					</td>
+					<td width="70%">
+						<div class="progress">
+						  <div class="progress-bar" role="progressbar" style="width: {{data.cpu}}%;" aria-valuenow="{{data.cpu}}" aria-valuemin="0" aria-valuemax="100">{{data.cpu}}%</div>
+						</div>
+					</td>
+					<td>
+						{{data.maxcpu}} Threads
+					</td>
+				</tr>
+				<tr>
+					<td>
+						RAM
+					</td>
+					<td>
+						<div class="progress">
+						  <div class="progress-bar" role="progressbar" style="width: {{data.memPercent}}%;" aria-valuenow="{{data.memPercent}}" aria-valuemin="0" aria-valuemax="100">{{data.mem}} - {{data.memPercent}}%</div>
+						</div>
+					</td>
+					<td>
+						of {{data.maxmem}}
+					</td>
+				</tr>
+			</table>
+
+			<hr />
+			<div class="tab-content" id="myTabContent">
+			  
+			  <div class="tab-pane fade show active" id="nodes-{{vpnSite.id}}" role="tabpanel" aria-labelledby="home-tab">
+			  	<ul>
+			  	{{#data.node}}
+					<li>{{node}} -- {{status}}</li> 
+				{{/data.node}}
+				</ul>
+			  </div>
+			  <div class="tab-pane fade" id="lxc-{{vpnSite.id}}" role="tabpanel" aria-labelledby="profile-tab">
+				<ul>
+				{{#data.lxc}}
+					<li>{{name}} -- {{status}}</li> 
+				{{/data.lxc}}
+				</ul>
+			  </div>
+			  <div class="tab-pane fade" id="kvm-{{vpnSite.id}}" role="tabpanel" aria-labelledby="contact-tab">
+				<ul>
+				{{#data.qemu}}
+					<li>{{name}} -- {{status}}</li> 
+				{{/data.qemu}}
+				</ul>
+			  </div>
+			  <div class="tab-pane fade" id="storage-{{vpnSite.id}}" role="tabpanel" aria-labelledby="contact-tab">
+			  	<ul>
+				{{#data.storage}}
+					<li>{{id}} -- {{status}}</li> 
+				{{/data.storage}}
+				</ul>
+			  </div>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+
+<!-- 	<div id="email_card" class="card-deck">
+		<div class="shadow-lg card mb-3">
+			<div class="card-header">
+				Validate Email
+			</div>
+			<div class="card-header actionMessage" style="display:none">
+			</div>
+			<div class="card-body">
+				<p>
+					Invited By: <b></b>,.
+				</p>
+				<p>
+					Please enter a valid email address. A link will be sent to
+					the supplied address to complete the registration process.
+				</p>
+				<p>
+					The supplied email will also be used as the linked email for
+					the new user.
+				</p>
+				<form action="auth/invite/" onsubmit="formAJAX(this)" evalAJAX="emailSent()">
+					<div class="form-group">
+						<label class="control-label">Email</label>
+						<div class="input-group mb-3">
+						  <div class="input-group-prepend">
+							<span class="input-group-text" ><i class="fad fa-at"></i></span>
+						  </div>
+							<input type="email" name="mail" class="form-control" placeholder="jsmith@gmail.com" validate="email:3" />
+						</div>
+					</div>
+
+					<button type="submit" class="btn btn-outline-dark"><i class="fad fa-paper-plane"></i> Send It!</button>
+				</form>
+			</div>
+		</div>
+	</div>
+</div> -->
+<%- include('bottom') %>

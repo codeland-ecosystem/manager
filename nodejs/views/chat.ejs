@@ -1,0 +1,79 @@
+<%- include('top') %>
+<script id="rowTemplate" type="text/html">
+	<p>
+		<b>{{ uid }}:</b> {{message}}
+	</p>
+</script>
+
+<script type="text/javascript">
+
+	var publishTopic = function(btn){
+		event.preventDefault(); // avoid to execute the actual submit of the form.
+		var $form = $(btn).closest( '[action]' ); // gets the 'form' parent
+		var formData = $form.find( '[name]' ).serializeObject(); 
+
+		if( !$form.validate()) {
+			app.util.actionMessage('Please fix the form errors.', $form, 'danger')
+			return false;
+		}
+
+		console.log('formData', formData)
+
+		app.publish('p2p-chat', {
+			uid: app.auth.user.uid,
+			message: formData.message
+		})
+		$form.trigger("reset");
+
+	};
+
+	$(document).ready(function(){
+		app.subscribe("p2p-chat", function(data, topic){
+			var rowTemplate = $('#rowTemplate').html();
+			var $target = $('#tableAJAX');
+
+			user_row = Mustache.render(rowTemplate, data);
+			$target.append(user_row);
+
+
+		});
+
+	});
+</script>
+<div class="row" style="display:none">
+	<div class="col-md-4">
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fas fa-layer-plus"></i>
+				Chat
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<div class="card-body">
+				<form action='__internal__' onsubmit="publishTopic(this)">
+
+					<div class="form-group">
+						<label class="control-label">message</label>
+						<textarea class="form-control shadow" name="message" placeholder="{...}" validate=":1"></textarea>
+					</div>
+
+					<button type="submit" class="btn btn-outline-dark">Send</button>
+				</form>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-8">
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fad fa-users-class"></i>
+				Incoming Chats
+			</div>
+			<div class="card-header actionMessage" style="display:none">
+			</div>
+			<div class="card-body">
+				<div class="" id="tableAJAX">
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<%- include('bottom') %>

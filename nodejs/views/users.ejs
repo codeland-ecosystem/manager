@@ -1,0 +1,94 @@
+<%- include('top') %>
+<script id="rowTemplate" type="text/html">
+	<tr class="" action="user/password/{{ username }}" method="put" evalAJAX="$form.trigger('reset')">
+		<td>
+			{{ uidNumber }}
+		</td>
+		<td>
+			<a href='/users/{{uid}}'>{{ uid }}</a>	
+		</td>
+		<td>
+			{{givenName}} {{sn}} 
+		</td>
+		<td>
+			{{mail}}
+		</td>
+		<td>
+			{{#sudoUser}}<i class="fad fa-check-square"></i>{{/sudoUser}}
+		</td>
+		<td>
+			{{#sshPublicKey}}<i class="fad fa-check-square"></i>{{/sshPublicKey}}
+		</td>
+		<td>
+			<button type="button" onclick="app.user.remove({uid: '{{uid}}'}, function(){renderUsers('username {{uid}} delete.')})" class="btn btn-sm btn-danger">
+				<i class="fad fa-user-slash"></i>
+			</button>
+		</td>
+	</tr>
+</script>
+<script type="text/javascript">
+
+	function renderUsers(actionMessage){
+		var rowTemplate = $('#rowTemplate').html();
+		var $target = $('#tableAJAX');
+
+		$target.html('').hide();
+		app.util.actionMessage('Refreshing user list...', $target);
+
+		app.user.list(function(error, data){
+			$.each( data.results, function(key, value) {
+				if(value.uidNumber<1500) return;
+				user_row = Mustache.render(rowTemplate, value);
+				$target.append(user_row);
+			});
+
+			$target.fadeIn('slow');
+
+			app.util.actionMessage(actionMessage || '', $target, 'info');
+
+		});
+	}
+
+	$(document).ready(function(){
+		renderUsers(); //populate the table
+		$('form[action="user/"]').attr('evalAJAX', 'renderUsers()')
+	});
+</script>
+<div class="row" style="display:none">
+	<div class="col-md-4">
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fas fa-user-plus"></i>
+				Add new user
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<div class="card-body">
+				<%- include('user_form') %>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-8">
+		<div class="card shadow">
+			<div class="card-header">
+				<i class="fad fa-th-list"></i>
+				User List
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<table class="card-body table table-striped" style="margin-bottom:0">
+				<thead>
+					<th>ID</th>
+					<th>User Name</th>
+					<th>Name</th>
+					<th>eMail</th>
+					<th>Sudo</th>
+					<th>Key</th>
+					<th></th>
+				</thead>
+				<tbody id="tableAJAX">
+					<!-- ajax loaded table -->
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+<%- include('bottom') %>
