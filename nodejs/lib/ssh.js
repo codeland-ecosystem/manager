@@ -15,7 +15,7 @@ class Local{
 	async memory(){
 		let res = (await this.exec("head /proc/meminfo")).stdout;
 		let memory = {};
-		let byteMultiplier = {'': 0, kb: 1000, mb:1000000};
+		let byteMultiplier = {'': 0, kb: 1024, mb:1000000};
 
 		for(let line of res.split('\n')){
 			if(!line) continue;
@@ -26,7 +26,10 @@ class Local{
 			memory[key] = Number(line[1])*byteMultiplier[line[2].toLowerCase()]
 		}
 
-		memory.percentUsed =((memory.free)/memory.total)*100;
+		memory.used = memory.total - memory.available;
+		memory.percentUsed =(memory.used/memory.total)*100;
+		memory.percentFree =((memory.free)/memory.total)*100;
+		memory.percentAvailable =((memory.available)/memory.total)*100;
 
 		console.lo
 
@@ -51,6 +54,11 @@ class Local{
 				line.map(function(value,idx){
 					mapOut[keys[idx].toLowerCase()] = value;
 				});
+
+				mapOut['available'] = Number(mapOut['available'])*1000;
+				mapOut['used'] = Number(mapOut['used'])*1000;
+				mapOut['total'] = mapOut['available']+ mapOut['used'];
+				mapOut['use%'] = Number.parseInt(mapOut['use%']);
 
 				info[mapOut[`mounted`]] = mapOut;
 			}
@@ -95,7 +103,7 @@ if (require.main === module){(async function(){try{
 	// let local = new Local();
 
 	console.log(await local.df())
-	console.log(await local.memory())
+	// console.log(await local.memory())
 
 }catch(error){
 	console.error('IIFE error:\n', error);

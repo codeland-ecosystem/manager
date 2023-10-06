@@ -114,7 +114,7 @@ class LXC{
 		try{
 			let res = await this.sysExec(`lxc-destroy --force --name ${this.name}`)
 
-			return !!res.stdout.match(/Destroyed container/);
+			return true;
 		}catch(error){
 			if(error.stderr.includes('Container is not defined')) throw this.errors.LXCNotFound(this.name)
 			throw error;

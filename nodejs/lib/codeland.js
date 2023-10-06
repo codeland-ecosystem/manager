@@ -4,12 +4,11 @@ const axios = require('axios');
 const { Ssh } = require('./ssh');
 const { LXC } = require('./lxc');
 const conf = require('../conf')
-const ps = require('../controller/pubsub.js'); 
 
 function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
 }
 
 /*
@@ -54,8 +53,6 @@ class CodeLandWorker{
 	}
 
 	__log(topic, message){
-		topic = `cl:worker:${topic}`; 
-		ps.publish(topic , message);
 		console.log(topic, ...Object.entries(message).map(([k, v]) => `${k}: ${v},`));
 		if(message.error && message.error instanceof Error){
 			console.error('==========\n', message.error, '\n===========')
@@ -67,22 +64,21 @@ class CodeLandWorker{
 		async calls, so this the the correct method to make new Code land
 		instances.
 	*/
-	static async new(args){
-		let instance = new this(args);
-		instance.runnerTemplate = await LXC.get({
-			name: instance.runnerTemplate,
-			execInstance: instance.ssh
+	async init(){
+		this.runnerTemplate = await LXC.get({
+			name: this.runnerTemplate,
+			execInstance: this.ssh
 		});
 
-		let runner = await instance.runnerTemplate.info()
+		let runner = await this.runnerTemplate.info()
 
-		instance.__log.call(instance, 'init',{
-			runnerTemplate: instance.runnerTemplate.name,
-			memTarget: instance.memTarget,
-			minAvailableRunners: instance.minAvailableRunners,
+		this.__log.call(this, 'init',{
+			runnerTemplate: this.runnerTemplate.name,
+			memTarget: this.memTarget,
+			minAvailableRunners: this.minAvailableRunners,
 		});
 
-		return instance;
+		return this;
 	}
 
 	constructor(args){
@@ -101,14 +97,11 @@ class CodeLandWorker{
 		// How many runners should be created regardless of memory usage
 		this.minAvailableRunners = args.minAvailableRunners || 3;
 
-		//
-		this.pubsun = ps
-
 		// Hold the list of current runners
 		this.__runners = {};
 
 		// Keep track how many runners are currently in creation
-		this.__runnersOnBackBunner = 0;
+		this.__runnersCooking = 0;
 	}
 
 
@@ -152,17 +145,16 @@ class CodeLandWorker{
 	async runnerMake(){
 		let name = this.runnerPrefix + (Math.random()*100).toString().slice(-5);
 
-		this.__log('runner:cooking', {
-			runner: name,
-			runnersOnBackBunner: ++this.__runnersOnBackBunner,
-		});
+		this.runnerSetStatus(name, 'cooking',{
+			runnersCooking: ++this.__runnersCooking,
+		})
+
 
 		let runner = await this.runnerTemplate.copy(name, true);
 		while(!(await runner.info()).ip) await sleep(250);
 		
-		this.__log('runner:new', {
-			runner: runner.name,
-			runnersOnBackBunner: --this.__runnersOnBackBunner
+		this.runnerSetStatus(runner, 'available', {
+			runnersCooking: --this.__runnersCooking
 		});
 
 		return runner;
@@ -180,49 +172,49 @@ class CodeLandWorker{
 		let errorCount = 0;
 		while(true){
 			let memory = await this.ssh.memory();
-
 			let message = {
-					runnersOnBackBunner: this.__runnersOnBackBunner,
+					runnersCooking: this.__runnersCooking,
 					AvailableRunners: Object.keys(this.__runners).length,
 			}
-
-
-			if(this.__runnersOnBackBunner > this.minAvailableRunners){
-				this.__log('runner:fill:stop', {
+			if(this.__runnersCooking > this.minAvailableRunners){
+				this.__log('runner:fill:pause', {
 					...message,
 					message: `stopping to many in the oven`
 				});
-				break;
+				await sleep(1000)
+				continue;
 			}else if(this.minAvailableRunners > Object.keys(this.__runners).length){
-				this.__log('runner:fill:start', {
+
+				this.__log('runner:fill:cooking', {
 					...message,
 					message: 'Not enough runners, forcing to make more'
 				});
-
-			}else if(memory.percentUsed > this.memTarget) {
-				this.__log('runner:fill:start', {
+			}else if(memory.percentUsed < this.memTarget) {
+				this.__log('runner:fill:cooking', {
 					...message,
-					message: 'stopping above memory percent'
+					message: 'Not at memory target'
 				});
-				break;
 			}else{
+				this.__log('runner:fill:success', {
+					...message,
+					message: 'Runners are full!',
+					availableRunners: Object.keys(this.__runners).length,
+				});
 				break;
 			}
 
 			try{
+				let toCook = this.minAvailableRunners/2;
+				this.__log('runner:fill:cooking', {
+					runnersCooking: toCook
+				});
 				const createRunnersAsync = async (count) => Promise.all(Array.from({ length: count }, () => this.runnerMake()));	
 				let runners = await createRunnersAsync(this.minAvailableRunners/2);
 
-				console.log
 
 				for(let runner of runners){
 					this.__runners[runner.name] = runner;
 				}
-
-				this.__log('runner:fill:success', {
-					...message,
-					availableRunners: Object.keys(this.__runners).length,
-				});
 
 			}catch(error){
 				this.__log('runner:fill:error', {
@@ -233,7 +225,6 @@ class CodeLandWorker{
 
 				continue;
 			}
-			await sleep(250);
 		}
 	}
 
@@ -244,13 +235,14 @@ class CodeLandWorker{
 	*/
 	async runnerFree(runner, fill=true){
 
-
 		this.__log('runner:free', {
 			message: `Freeing runner`,
 			runner: runner ? runner.name : ''
 		});
 
 		if(!(runner instanceof LXC)){
+
+
 			this.__log('runner:free:error:badInstance', {
 				error: `runner not instanceof LXC`,
 				runner: runner
@@ -260,6 +252,7 @@ class CodeLandWorker{
 			return false;
 		}
 		let name = runner.name;
+		this.runnerSetStatus(runner, 'stopped');
 
 		if(this.__runners[runner.name]){
 			delete this.__runners[name];
@@ -289,18 +282,23 @@ class CodeLandWorker{
 		});
 	}
 
+	runnerSetStatus(runner, status, message){
+		if(runner instanceof LXC) runner.lastStatus = status;
+		this.__log(`runner:status:${status}`, {
+			runner: runner instanceof LXC ? runner.name : runner,
+			...message,
+			cooking: this.__runnersCooking,
+			available: Object.keys(this.__runners).length,
+		})
+	}
+
 	/*
 		Get a runner for use.
 	*/
 	runnerPop(){
 		for(let [name, runner] of Object.entries(this.__runners)){
-			if(!runner.inUse){
-				runner.inUse = true;
-
-				this.__log('runner:inUse', {
-					message: `This runner has moved to be in use`,
-					runner: runner ? runner.name : ''
-				});
+			if(runner.lastStatus == 'available'){
+				this.runnerSetStatus(runner, 'inUse');
 
 				return runner
 			}
@@ -322,42 +320,61 @@ class CodeLandWorker{
 	/*
 		Execute code on the remote runner via the crunner API.
 	*/
-	async runnerRun(runner, code){
+	async runnerRun(runner, code, time){
+		const startTime = new Date();
+		var error;
+		var res;
 		try{
-			let res = await axios.post(`http://${this.ssh.host}/`, {
+			this.runnerSetStatus(runner, 'execute');
+
+			res = await axios.post(`http://${this.ssh.host}/`, {
 				code: code
 			}, {
 				headers: {
 					Host: runner.name
-				}
+				},
+				timeout: time ? time*1000 : undefined,
 			});
 
-			return res.data;
 		}catch(error){
-			throw this.errors.runnerExecutionFailed(runner)
+			error = error;
 		}
+
+		const endTime = new Date();
+		const duration = endTime - startTime
+
+		this.runnerSetStatus(runner, error ? 'error' : 'complete',{
+			duration,
+			error
+		});
+
+		if(error) throw this.errors.runnerExecutionFailed(runner)
+		return {runner: runner.name, duration, ...res.data};
+
 	}
 
 	/*
 		Execute code on new runner, then kill it.
 	*/
 	runnerRunOnce(code, time=60){
+		let runner;
 		return new Promise(async (resolve, reject)=>{
 			try{
-				console.log('runnerRunOnce', time);
-				let runner = await this.runnerPop();
+				runner = await this.runnerPop();
 
 				runner.timeout = setTimeout((runner)=>{
-					console.log('runnerRunOnce timed out', runner.name);
-					reject(this.errors.runnerTimedOut(time, runner));
+					let error = this.errors.runnerTimedOut(time, runner);
+					this.runnerSetStatus(runner, 'error', {error});
+					reject(error);
 					this.runnerFree(runner)
 				}, time*1000, runner)
 
-				let res = await this.runnerRun(runner, code);
-				this.runnerFree.call(this, runner);
+				let res = await this.runnerRun(runner, code, time);
+				this.runnerFree(runner);
 
 				return resolve(res);	
 			}catch(error){
+				this.runnerSetStatus(runner, error)
 				reject(error);
 			}
 		});
@@ -412,7 +429,7 @@ if (require.main === module){(async function(){try{
 	// 			res ? count++ : failCount++;
 	// 			console.log('worked: ', count, 'failed', failCount, 
 	// 				'available runners:', Object.keys(clworker.runners).length,
-	// 				'runners in the oven:', clworker.runnersOnBackBunner,
+	// 				'runners in the oven:', clworker.runnersCooking,
 	// 				'free mem percent:', (await clworker.memory()).percent,
 	// 			);
 	// 	})()

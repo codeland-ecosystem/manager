@@ -1,18 +1,9 @@
 <%- include('top') %>
-<script id="rowTemplate" type="text/html">
-	<p>
-	<div class="card shadow">
-		<div class="card-header">
-			<i class="fad fa-users-class"></i>
-			<b>Topic:</b> {{ topic }}
-		</div>
-		<div class="card-body">
-			{{ data }}
-		</div>
-	</div>
-	</p>
-</script>
-
+<style type="text/css">
+	div.card-body.jq-repeat-workerInfomation > ul > li.list-group-item{
+		padding: 2px;
+	}
+</style>
 <script type="text/javascript">
 
 	function formatBytes(bytes, decimals = 2) {
@@ -28,118 +19,210 @@
 	}
 
 	function parseMemory(memory){
-		memory.used = (memory.total-memory.free)
+		
 		for(let [key, value] of Object.entries(memory)){
 
-			if(key === 'percentUsed'){
-				memory[key] = Math.floor(value);
+			if(key.includes('percent')){
+				memory[`${key}Floor`] = Math.floor(value);
 				continue;
 			}
 			memory[key] = formatBytes(value)
 		}
-
+		memory.percenfreeDiff = memory.percentAvailable - memory.percentFree;
 
 		return memory;
 	}
 
+	let runnerStatusMap = {
+		available: 'primary',
+		inUse: 'warning',
+		execute: 'success',
+		error: 'danger',
+		stopped: 'secondary',
+	}
+
+
+	function runnerStatus(runner, status){
+		if(!runnerStatusMap[status]) status = 'error';
+		let $el = $(`#runner-${runner}`);
+		// console.log('runnerStatus', )
+		$el.removeClass (function (index, className) {
+		    return (className.match (/(^|\s)list-group-item-\S+/g) || []).join(' ');
+		});
+
+		if(status === 'complete') status = 'inUse';
+
+		$el.addClass(`list-group-item-${runnerStatusMap[status]}`)
+	}
+
 	$(document).ready(function(){
-		$.scope.runnersAvailable.__index = 'name';
-		$.scope.runnersInUse.__index = 'name';
+		$.scope.runnerAvailable.__index = 'name';
+		$.scope.runnerInUse.__index = 'name';
 
-		  // set up animation for adding to taks list
-		$.scope.runnersAvailable.__put = function(){
-		    this.fadeIn( 'slow' );
-		};
+		//   // set up animation for adding to taks list
+		// $.scope.runnerAvailable.__put = function(){
+		//     this.fadeIn( 'slow' );
+		// };
 
-		// set up animation for removing taks from list
-		$.scope.runnersAvailable.__take = function(){
-			this.slideUp( 'slow', function(){
-				this.remove();
-			});
-		};
+		// // set up animation for removing taks from list
+		// $.scope.runnerAvailable.__take = function(){
+		// 	this.slideUp( 'slow', function(){
+		// 		this.remove();
+		// 	});
+		// };
 
-		// set up animation for adding to taks list
-		$.scope.runnersInUse.__put = function(){
-		    this.slideDown( 'slow' );
-		};
+		// // set up animation for adding to taks list
+		// $.scope.runnerInUse.__put = function(){
+		//     this.slideDown( 'slow' );
+		// };
 
-		// set up animation for removing taks from list
-		$.scope.runnersInUse.__take = function(){
-			this.slideUp( 'slow', function(){
-				this.remove();
-			});
-		};
+		// // set up animation for removing taks from list
+		// $.scope.runnerInUse.__take = function(){
+		// 	this.slideUp( 'slow', function(){
+		// 		this.remove();
+		// 	});
+		// };
 
 		app.api.get('runner', function(err, data){
-			$.scope.workerInfomation.push(parseMemory(data.memory));
+			$.scope.workerInfomation.push({memory: parseMemory(data.memory)});
 			for(runner of data.runners){
-				if(runner.inUse){
-					$.scope.runnersInUse.push(runner)
+				if(runner.lastStatus !== 'available'){
+					$.scope.runnerInUse.push(runner)
 				}else{
-					$.scope.runnersAvailable.push(runner)
+					$.scope.runnerAvailable.push(runner)
 				}
+				runnerStatus(runner.name, runner.lastStatus)
 			}
-		})
-
-		app.subscribe('cl:worker:runner:new', function(data, topic){
-			// console.log(topic, data)
-			$.scope.runnersAvailable.push({name: data.runner})
 		});
 
-		app.subscribe('cl:worker:runner:inUse', function(data, topic){
+		app.subscribe('cl:worker:runner:status:available', function(data, topic){
 			// console.log(topic, data)
-			$.scope.runnersAvailable.splice(data.runner, 1)
-			$.scope.runnersInUse.push({name: data.runner})
+			$.scope.runnerAvailable.push({name: data.runner})
 		});
 
-		app.subscribe('cl:worker:runner:free', function(data, topic){
+		app.subscribe('cl:worker:runner:status:inUse', function(data, topic){
 			// console.log(topic, data)
-			var $el = $('#runner-'+data.runner);
-			$el.removeClass('list-group-item-success list-group-item-primary')
-			$el.addClass('list-group-item-danger')
+			$.scope.runnerAvailable.splice(data.runner, 1)
+			// console.log('inUse', data.runner, topic.split(':')[4])
+			if($.scope.runnerInUse.indexOf(data.runner) === -1) $.scope.runnerInUse.push({name: data.runner})
+			runnerStatus(data.runner, topic.split(':')[4])
 		});
 
 		app.subscribe('cl:worker:runner:free:success', function(data, topic){
-			console.log(topic, data.runner)
-			$.scope.runnersAvailable.splice(data.runner, 1)
-			$.scope.runnersInUse.splice(data.runner, 1)
+			// console.log(topic, data)
+			setTimeout((data, topic)=>{
+				$.scope.runnerInUse.splice(data.runner, 1)
+				$.scope.runnerAvailable.splice(data.runner, 1)
+			}, 30000, data, topic)
 		});
+
+
+		app.subscribe('cl:worker:runner:status:complete', function(data, topic){
+			data.durationHuman = moment.duration(data.duration).humanize();
+			$.scope.runnerInUse.update(data.runner, data);
+		});
+
+		app.subscribe(/^cl:worker:runner:status:/, function(data, topic){
+			topic = topic.split(':')
+			// console.log(data.runner, topic[4])
+			runnerStatus(data.runner, topic[4])
+			$.scope.workerInfomation.update(0, {runners:data})
+
+		})
+
+		app.subscribe(/^cl:worker:runner:fill:/, function(data, topic){
+				topic = topic.split(':')
+				// console.log(topic[4], data)
+				$.scope.workerInfomation.update(0, {
+					...data,
+					status: topic[4]
+				})	
+		})
 
 		app.subscribe('cl:worker:memory', function(data, topic){
 			// console.log(topic, data)
-			$.scope.workerInfomation.update(0, parseMemory(data));
+			$.scope.workerInfomation.update(0, {memory: parseMemory(data)});
 		});
 
+		app.subscribe('cl:worker:df', function(data, topic){
+			data = {
+				df: {
+					filesystem: data.filesystem,
+					used: formatBytes(data.used),
+					total: formatBytes(data.total),
+					available: formatBytes(data.available),
+					percentUsed: data['use%'],
+				}
+			}
 
-		// app.subscribe(/./g, function(data, topic){
-		// 	var rowTemplate = $('#rowTemplate').html();
-		// 	var $target = $('#tableAJAX');
-
-		// 	user_row = Mustache.render(rowTemplate, {topic, data: JSON.stringify(data)});
-		// 	$target.append(user_row);
-		// 	$target.fadeIn('slow');
-		// });
+			$.scope.workerInfomation.update(0, data);
+		});
 	});
 </script>
 <div class="row" style="display:none">
 
 	<div class="col-md-4">
-		<div class="card shadow-lg">
+		<div class="card shadow-lg" jq-repeat="workerInfomation">
 			<div class="card-header">
 				<i class="fas fa-layer-plus"></i>
 				Worker Information
 			</div>
 			<div class="card-header actionMessage" style="display:none"></div>
-			<div class="card-body" jq-repeat="workerInfomation">
-				<span> Total Memory: <b>{{total}}</b> </span> <br/>
-				<span> Used Memory: <b>{{used}}</b> </span> <br/>
+			<div class="card-body">
+
+				<h4 class="card-title">Memory</h4>
+				<ul class="list-group list-group-flush">
+					<li class="list-group-item list-group-item-primary">
+						 Total: <b>{{memory.total}}</b> 
+					</li>
+					<li class="list-group-item list-group-item-danger">
+						 Used: <b >{{memory.used}} {{memory.percentUsedFloor}}%</b> 
+					</li>
+					<li class="list-group-item list-group-item-success">
+						 Available: <b>{{memory.available}} {{memory.percentAvailableFloor}}%</b>
+					</li>
+					<li class="list-group-item list-group-item-warning">
+						 Free: <b>{{memory.free}} {{memory.percentFreeFloor}}%</b>
+					</li>
+				</ul>
+
+				<br />
 				<div class="progress">
-				  <div class="progress-bar" role="progressbar" style="width: {{percentUsed}}%;" aria-valuenow="{{percentUsed}}" aria-valuemin="0" aria-valuemax="100">{{percentUsed}}%</div>
+				  <div class="progress-bar bg-danger" role="progressbar" style="width: {{memory.percentUsed}}%" aria-valuenow="{{memory.percentUsed}}" aria-valuemin="0" aria-valuemax="100"></div>
+				  <div class="progress-bar bg-success" role="progressbar" style="width: {{memory.percenfreeDiff}}%" aria-valuenow="{{memory.percenfreeDiff}}" aria-valuemin="0" aria-valuemax="100"></div>
+				  <div class="progress-bar bg-warning" role="progressbar" style="width: {{memory.percentFree}}%" aria-valuenow="{{memory.percentFree}}" aria-valuemin="0" aria-valuemax="100"></div>
 				</div>
+					
+				<hr />
+
+				<h4 class="card-title">Disk /</h4>
+				<p class="card-text">
+					<span> Total: <b>{{df.total}}</b> </span> <br/>
+					<span> Used: <b>{{df.used}}</b> </span> <br/>
+					<div class="progress">
+					  <div class="progress-bar" role="progressbar"
+					  	style="width: {{df.percentUsed}}%;"
+					  	aria-valuenow="{{df.percentUsed}}" aria-valuemin="0"
+					  	aria-valuemax="100">
+					  		{{df.percentUsed}}%
+					  </div>
+					</div>
+				</p>
+
+				<hr />
+
+				<h4 class="card-title">Runner oven</h4>
+				<p class="card-text">
+					<span> Cooking: <b>{{runnersCooking}}</b> </span> <br/>
+					<span> Available: <b>{{AvailableRunners}}</b> </span> <br/>
+					<span> Status: <b>{{status}}</b> </span> <br/>
+					<span> Message: <b>{{message}}</b> </span> <br/>
+				</p>
+
 			</div>
+		
 		</div>
 	</div>
-
 
 	<div class="col-md-4">
 		<div class="card shadow-lg">
@@ -151,7 +234,7 @@
 			<div class="card-body">
 
 				<ul class="list-group">
-					<li id="runner-{{name}}" jq-repeat="runnersAvailable" class="list-group-item list-group-item-primary" style="display:none">
+					<li id="runner-{{name}}" jq-repeat="runnerAvailable" class="list-group-item list-group-item-primary" style="display:none">
 						{{name}}
 					</li>
 				</ul>
@@ -170,7 +253,27 @@
 			<div class="card-body">
 
 				<ul class="list-group">
-					<li id="runner-{{name}}" jq-repeat="runnersInUse" class="list-group-item list-group-item-success" style="display:none">
+					<li id="runner-{{name}}" jq-repeat="runnerInUse" class="list-group-item list-group-item-warning" style="display:none">
+						<span>{{name}}</span> <br />
+						<span>Execution took {{durationHuman}} <i>({{duration}}ms)</i></span>
+					</li>
+				</ul>
+
+			</div>
+		</div>
+
+		<br />
+		
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fas fa-layer-plus"></i>
+				Runner History
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<div class="card-body">
+				<h1> Coming soon! </h1>
+				<ul class="list-group">
+					<li id="runner-{{name}}" jq-repeat="runnerHisory" class="list-group-item list-group-item-success" style="display:none">
 						{{name}}
 					</li>
 				</ul>
@@ -178,6 +281,8 @@
 			</div>
 		</div>
 	</div>
+
+
 
 
 
