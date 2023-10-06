@@ -18,24 +18,29 @@
 				configurable: true
 			} );
 
-			result.splice = function(inputValue, ...args){
+			Object.defineProperty( result, "__rq_template", {
+				value: '',
+				writable: true,
+				enumerable: false,
+				configurable: true
+			} );
+
+			result.__rq_template = $( document.getElementById( repeatId + 'Template' ).outerHTML ).html()
+
+			result.splice = function(index, ...args){
 				//splice does all the heavy lifting by interacting with the DOM elements.
 
-				var toProto = [...args]
-
-				var index;
+				// var index;
 				//if a string is submitted as the index, try to match it to index number
 				if( typeof arguments[0] === 'string' ){
 					index = this.indexOf( arguments[0] );//set where to start
 					if ( index === -1 ) {
-						return [];
+						console.log('NOT FOUND!!!!!!!!!!!!!!!!', index, arguments)
+						return -1;
 					}
 				}else{
 					index = arguments[0]; //set where to start
 				}
-
-				toProto.unshift(index)
-				
 				var howMany = arguments[1]; //sets the amount of fields to remove
 				var args = Array.prototype.slice.call( arguments ); // coverts arguments into array 
 				var toAdd = args.slice(2); // only keeps fields to add to array
@@ -65,17 +70,21 @@
 				// var newLength = this.length + shift;
 
 				//removes fields from array based on howMany needs to be removed
-				for( var i = 0; i < howMany; i++ ) {
-					this.__take.apply( $( '.jq-repeat-'+ this.__repeatId +'[jq-repeat-index="'+ ( i + index ) +'"]' ) );
+
+				console.log('to remove count', index, index+howMany)
+				for( var i = index; i < +index+howMany; i++ ) {
+					console.log('to remove', i, index, this[index].name)
+					this.__take.apply( this[index].__jq_$el  );
+					// this.__take.apply( $( '.jq-repeat-'+ this.__repeatId +'[jq-repeat-index="'+ ( i + index ) +'"]' ) );
 				}
 
 				//re-factor element index's
-				$( '.jq-repeat-'+ this.__repeatId+'[jq-repeat-index!="holder"]' ).each(function(){
-					var thisIndex = Number( $( this ).attr( 'jq-repeat-index' ) );
-					if(  thisIndex >= index){
-						$( this ).attr( 'jq-repeat-index', thisIndex+shift );
+				for(var i = 0; i < this.length; i++){
+					if(  i >= index){
+						console.log('loop var', i, 'starting index', index, 'shift', shift, 'new', i+shift,  this[i].name)
+						this[i].__jq_$el.attr( 'jq-repeat-index', i+shift );
 					}
-				});
+				}
 
 				//if there are fields to add to the array, add them
 				if( toAdd.length > 0 ){
@@ -85,28 +94,35 @@
 						
 						//figure out new elements index
 						var key = I + index;
-						//get the proper template
-						var template = $( document.getElementById( this.__repeatId + 'Template' ).outerHTML );
 						// apply values to template
-						var render = Mustache.render( template.html(), toAdd[I] );
+						var render = Mustache.render( this.__rq_template, toAdd[I] );
 						
 						//set call name and index keys to DOM element
-						render = $( render ).addClass( 'jq-repeat-'+ this.__repeatId ).attr( 'jq-repeat-index', key );
+						var $render = $( render ).addClass( 'jq-repeat-'+ this.__repeatId ).attr( 'jq-repeat-index', key );
+
 
 						//if add new elements in proper stop, or after the place holder.
 						if( key === 0 ){
-							$( '.jq-repeat-'+ this.__repeatId +'[jq-repeat-index="holder"]' ).after( render );
+							$( '.jq-repeat-'+ this.__repeatId +'[jq-repeat-index="holder"]' ).after( $render );
 						}else{
-							$( '.jq-repeat-'+ this.__repeatId +'[jq-repeat-index="' + ( key -1 ) + '"]' ).after( render );
+							$( '.jq-repeat-'+ this.__repeatId +'[jq-repeat-index="' + ( key -1 ) + '"]' ).after( $render );
 						}
+
+						Object.defineProperty( toAdd[I], "__jq_$el", {
+							value: $render,
+							writable: true,
+							enumerable: false,
+							configurable: true
+						} );
 						
 						//animate element
-						this.__put.apply(render);
+						this.__put.apply($render, [toAdd[I]]);
 					}
 				}
 				
 				//set and return new array
-				return Array.prototype.splice.apply(this, toProto);
+				console.log('to prototype', index, ...args)
+				return Array.prototype.splice.call( this, index, ...args );
 			};
 			result.push = function(){
 				//add one or more objects to the array
@@ -159,7 +175,9 @@
 					key = this.__index;
 				}
 				for ( var index = 0; index < this.length; ++index ) {
+					console.log('indexOf', index, key, value, this[index][key], this[index])
 					if( this[index][key] === value ){
+						console.log('indexOf2', index, key, value, this[index][key], this[index])
 						return index;
 					}
 				}

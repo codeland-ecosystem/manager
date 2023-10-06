@@ -1,17 +1,18 @@
 'use strict';
 
-const {Exec, Ssh} = require('./ssh');
+const {Local, Ssh} = require('./ssh');
+
 
 class LXC{
-	static execInstance = new Exec();
+	static execInstance = new Local();
 	
 	static setExec(sysExec){
-		if(sysExec instanceof Exec){
+		if(sysExec instanceof Local){
 			this.execInstance = sysExec;
 			return true;
 		}
 
-		throw new Error(`${sysExec} is not an instanceof Exec`);
+		throw new Error(`${sysExec} is not an instanceof Local`);
 	}
 
 	static async sysExec(command){
@@ -98,12 +99,24 @@ class LXC{
 		}
 	}
 
+	errors = {
+		LXCNotFound: (name)=>{
+			const error = new Error('LXCNotFound');
+			error.name = 'LXCNotFound';
+			error.message = `The requested LXC, ${name} can not be found`;
+			error.status = 404;
+			return error;
+		},
+	}
+
+
 	async destroy(){
 		try{
 			let res = await this.sysExec(`lxc-destroy --force --name ${this.name}`)
 
 			return !!res.stdout.match(/Destroyed container/);
 		}catch(error){
+			if(error.stderr.includes('Container is not defined')) throw this.errors.LXCNotFound(this.name)
 			throw error;
 		}
 	}
@@ -154,7 +167,7 @@ class LXC{
 	}
 }
 
-module.exports = {Exec, Ssh, LXC};
+module.exports = {Local, Ssh, LXC};
 
 
 // Testing area for local file
@@ -180,8 +193,6 @@ if (require.main === module){(async function(){try{
 	
 
 	// console.log(await runner1.list())
-// 
-
 
 }catch(error){
 	console.error('IIFE error:\n', error);

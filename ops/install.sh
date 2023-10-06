@@ -1,6 +1,6 @@
 #!/bin/bash
 
-apt install -y git curl sudo
+apt install -y git curl sudo redis-server
 
 # Stop this script on any error.
 set -e

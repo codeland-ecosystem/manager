@@ -11,9 +11,6 @@ module.exports = {
 		userFilter: '(objectClass=posixAccount)',
 		userNameAttribute: 'uid'
 	},
-	redis: {
-		prefix: 'cl-manager_'
-	},
 	httpProxyAPI:{
 		host: 'http://10.2.0.51:3000',
 		key: '__IN SRECREST FILE__'

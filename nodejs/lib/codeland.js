@@ -54,8 +54,12 @@ class CodeLandWorker{
 	}
 
 	__log(topic, message){
-		ps.publish(`cl:worker:${topic}`, message);
-		console.log(topic, ...Object.entries(message).map(([k, v]) => `${k}: ${v}`));
+		topic = `cl:worker:${topic}`; 
+		ps.publish(topic , message);
+		console.log(topic, ...Object.entries(message).map(([k, v]) => `${k}: ${v},`));
+		if(message.error && message.error instanceof Error){
+			console.error('==========\n', message.error, '\n===========')
+		}
 	}
 
 	/*
@@ -70,7 +74,13 @@ class CodeLandWorker{
 			execInstance: instance.ssh
 		});
 
-		await instance.runnerTemplate.info()
+		let runner = await instance.runnerTemplate.info()
+
+		instance.__log.call(instance, 'init',{
+			runnerTemplate: instance.runnerTemplate.name,
+			memTarget: instance.memTarget,
+			minAvailableRunners: instance.minAvailableRunners,
+		});
 
 		return instance;
 	}
@@ -86,7 +96,7 @@ class CodeLandWorker{
 		this.runnerPrefix = args.runnerPrefix || `${this.runnerTemplate}-${conf.environment}-`;
 		
 		// Default memory target for runner creation
-		this.memTarget = args.memTarget || 50;
+		this.memTarget = args.memTarget || 1;
 
 		// How many runners should be created regardless of memory usage
 		this.minAvailableRunners = args.minAvailableRunners || 3;
@@ -101,33 +111,6 @@ class CodeLandWorker{
 		this.__runnersOnBackBunner = 0;
 	}
 
-	/*
-		Get the memory info from the worker server.
-	*/
-	async memory(){
-		let res = await this.ssh.exec(
-			"head /proc/meminfo|grep MemFree|grep -Po '\\d+'; head /proc/meminfo|grep MemTotal|grep -Po '\\d+'",
-		);
-
-		let available = Number(res.stdout.split('\n')[0]);
-		let total = Number(res.stdout.split('\n')[1]);
-		let used = total - available;
-		let percent = (used/total)*100;
-
-		this.__log('memory', {
-			total,
-			available,
-			used,
-			percent,
-		});
-
-		return {
-			total,
-			available,
-			used,
-			percent,
-		}
-	}
 
 	/*
 		getCurrentCopies and deleteUntracedRunners clean up zombie runners from
@@ -152,12 +135,6 @@ class CodeLandWorker{
 	async deleteUntracedRunners(){
 		for(let [name, runner] of Object.entries(await this.getCurrentCopies())){
 			if(!this.__runners[name]){
-				// this.__log('runner:delete', {
-				// 	runner: name,
-				// 	reason: 'zombie'
-				// })
-				// await runner.destroy();
-
 				this.runnerFree(runner, false)
 				await sleep(1000);
 
@@ -174,15 +151,20 @@ class CodeLandWorker{
 	*/
 	async runnerMake(){
 		let name = this.runnerPrefix + (Math.random()*100).toString().slice(-5);
-		this.__runnersOnBackBunner++;
+
+		this.__log('runner:cooking', {
+			runner: name,
+			runnersOnBackBunner: ++this.__runnersOnBackBunner,
+		});
+
 		let runner = await this.runnerTemplate.copy(name, true);
 		while(!(await runner.info()).ip) await sleep(250);
-
-		this.__runnersOnBackBunner--;
 		
 		this.__log('runner:new', {
-			runner: runner.name
+			runner: runner.name,
+			runnersOnBackBunner: --this.__runnersOnBackBunner
 		});
+
 		return runner;
 	}
 
@@ -197,11 +179,13 @@ class CodeLandWorker{
 	async runnerFill(){
 		let errorCount = 0;
 		while(true){
-			let memory = await this.memory()
+			let memory = await this.ssh.memory();
+
 			let message = {
 					runnersOnBackBunner: this.__runnersOnBackBunner,
 					AvailableRunners: Object.keys(this.__runners).length,
 			}
+
 
 			if(this.__runnersOnBackBunner > this.minAvailableRunners){
 				this.__log('runner:fill:stop', {
@@ -215,27 +199,31 @@ class CodeLandWorker{
 					message: 'Not enough runners, forcing to make more'
 				});
 
-			}else if(memory.percent > this.memTarget) {
+			}else if(memory.percentUsed > this.memTarget) {
 				this.__log('runner:fill:start', {
 					...message,
 					message: 'stopping above memory percent'
 				});
-				break
+				break;
+			}else{
+				break;
 			}
 
 			try{
-				const createRunnersAsync = (count) => Promise.all(Array.from({ length: count }, () => this.runnerMake()));
+				const createRunnersAsync = async (count) => Promise.all(Array.from({ length: count }, () => this.runnerMake()));	
 				let runners = await createRunnersAsync(this.minAvailableRunners/2);
+
+				console.log
 
 				for(let runner of runners){
 					this.__runners[runner.name] = runner;
-
-					this.__log('runner:fill:success', {
-						...message,
-						message: `created ${runner.name} runner for fill, count now ${Object.keys(this.__runners).length}`
-					});
-					break
 				}
+
+				this.__log('runner:fill:success', {
+					...message,
+					availableRunners: Object.keys(this.__runners).length,
+				});
+
 			}catch(error){
 				this.__log('runner:fill:error', {
 					...message,
@@ -255,6 +243,8 @@ class CodeLandWorker{
 		replenishment is required 
 	*/
 	async runnerFree(runner, fill=true){
+
+
 		this.__log('runner:free', {
 			message: `Freeing runner`,
 			runner: runner ? runner.name : ''
@@ -278,7 +268,20 @@ class CodeLandWorker{
 		if(runner.hasOwnProperty('timeout')){
 			clearTimeout(runner.timeout);
 		}
-		await runner.destroy();
+
+		try{
+			await runner.destroy();
+		}catch(error){
+			if(error.name === 'LXCNotFound'){
+				this.__log('runner:free:error:error:LXCNotFound', {
+					error: 'runner:free:error:',
+					message: 'Ignoring for now..  will call cleanup script to delete container',
+					runner: runner.name,
+				});
+			}else{
+				throw error;
+			}
+		}
 		if(fill) this.runnerFill();
 		this.__log('runner:free:success', {
 			message: `done`,

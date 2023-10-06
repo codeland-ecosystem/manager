@@ -27,7 +27,7 @@ router.get('/', async(req, res, next)=>{
     }
   
     return res.json({
-      memory: await clworker.memory(),
+      memory: await clworker.ssh.memory(),
       runners: runners
       });
   }catch(error){
