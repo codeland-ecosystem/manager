@@ -52,7 +52,7 @@ router.post('/:runner', async (req, res, next)=>{
   let runner;
   try{
     runner = clworker.runnerGetByName(req.params.runner);
-    const result = await clworker.runnerRun(runner, req.body.code);
+    const result = await clworker.runnerRun(runner, req.body.code, false);
     return res.json({...result, runner: runner.name});
   }catch(error){
     if(runner && !error.runner) error.runner = runner;

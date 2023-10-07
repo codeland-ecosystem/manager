@@ -130,7 +130,6 @@ class CodeLandWorker{
 			if(!this.__runners[name]){
 				this.runnerFree(runner, false)
 				await sleep(1000);
-
 			}
 		}
 	}
@@ -241,8 +240,6 @@ class CodeLandWorker{
 		});
 
 		if(!(runner instanceof LXC)){
-
-
 			this.__log('runner:free:error:badInstance', {
 				error: `runner not instanceof LXC`,
 				runner: runner
@@ -253,6 +250,7 @@ class CodeLandWorker{
 		}
 		let name = runner.name;
 		this.runnerSetStatus(runner, 'stopped');
+
 
 		if(this.__runners[runner.name]){
 			delete this.__runners[name];
@@ -286,7 +284,7 @@ class CodeLandWorker{
 		if(runner instanceof LXC) runner.lastStatus = status;
 		this.__log(`runner:status:${status}`, {
 			runner: runner instanceof LXC ? runner.name : runner,
-			...message,
+			...(message || {}),
 			cooking: this.__runnersCooking,
 			available: Object.keys(this.__runners).length,
 		})
@@ -321,13 +319,12 @@ class CodeLandWorker{
 		Execute code on the remote runner via the crunner API.
 	*/
 	async runnerRun(runner, code, time){
+		console.log('runnerRun', time)
 		const startTime = new Date();
-		var error;
-		var res;
 		try{
 			this.runnerSetStatus(runner, 'execute');
 
-			res = await axios.post(`http://${this.ssh.host}/`, {
+			let res = await axios.post(`http://${this.ssh.host}/`, {
 				code: code
 			}, {
 				headers: {
@@ -336,48 +333,40 @@ class CodeLandWorker{
 				timeout: time ? time*1000 : undefined,
 			});
 
+			const endTime = new Date();
+			const duration = endTime - startTime
+
+			this.runnerSetStatus(runner, 'complete', {duration});
+
+			return {runner: runner.name, duration, ...res.data};
+
+
 		}catch(error){
-			error = error;
+			if(error.code === 'ECONNABORTED'){
+				 error = this.errors.runnerTimedOut(time, runner);
+			}
+
+			this.runnerSetStatus(runner, 'error', {error});
+
+			throw error;
 		}
-
-		const endTime = new Date();
-		const duration = endTime - startTime
-
-		this.runnerSetStatus(runner, error ? 'error' : 'complete',{
-			duration,
-			error
-		});
-
-		if(error) throw this.errors.runnerExecutionFailed(runner)
-		return {runner: runner.name, duration, ...res.data};
-
 	}
 
 	/*
 		Execute code on new runner, then kill it.
 	*/
-	runnerRunOnce(code, time=60){
+	async runnerRunOnce(code, time=60){
 		let runner;
-		return new Promise(async (resolve, reject)=>{
-			try{
-				runner = await this.runnerPop();
+		try{
+			runner = await this.runnerPop();
+			let res = await this.runnerRun(runner, code, time);
 
-				runner.timeout = setTimeout((runner)=>{
-					let error = this.errors.runnerTimedOut(time, runner);
-					this.runnerSetStatus(runner, 'error', {error});
-					reject(error);
-					this.runnerFree(runner)
-				}, time*1000, runner)
-
-				let res = await this.runnerRun(runner, code, time);
-				this.runnerFree(runner);
-
-				return resolve(res);	
-			}catch(error){
-				this.runnerSetStatus(runner, error)
-				reject(error);
-			}
-		});
+			return res;	
+		}catch(error){
+			throw error;
+		}finally{
+			if(runner) this.runnerFree(runner);
+		}
 	}
 }
 

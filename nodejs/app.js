@@ -19,6 +19,8 @@ app.conf = require('./conf');
 // Grab the projects PubSub
 app.ps = require('./controller/pubsub.js'); 
 
+let socketCount = 0;
+
 // Push pubsub over the socket and back.
 app.onListen.push(function(){
   app.ps.subscribe(/./g, function(data, topic){
@@ -26,6 +28,7 @@ app.onListen.push(function(){
   });                                 
 
   app.io.on('connection', (socket) => {
+    console.log('socket?', socketCount++);
     socket.on('P2PSub', (msg) => {
       app.ps.publish(msg.topic, msg.data);
       socket.broadcast.emit('P2PSub', msg);
@@ -55,17 +58,6 @@ app.use('/', require('./routes/render'));
 // API route
 app.use('/api/v1', require('./routes/api_v1'));
 
-// // API routes for authentication. 
-// app.use('/api/auth',  require('./routes/auth'));
-// app.use('/api/git',  require('./routes/git_webhook.js'));
-
-
-// // API routes for working with users. All endpoints need to be have valid user.
-// app.use('/api/user', middleware.auth, require('./routes/user'));
-// app.use('/api/repo', middleware.auth, require('./routes/repo'));
-
-
-
 // Catch 404 and forward to error handler. If none of the above routes are
 // used, this is what will be called.
 app.use(function(req, res, next) {
@@ -88,6 +80,7 @@ app.use(function(err, req, res, next) {
   res.json({
     name: err.name,
     message: err.message,
-    runner: err.runner && err.runner.name
+    runner: err.runner && err.runner.name,
+    duration: err.duration,
   });
 });

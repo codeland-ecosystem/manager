@@ -165,6 +165,12 @@ class LXC{
 	async setAutoStart(name){
 		await this.sysExec(`echo "lxc.start.auto = 1" >>  "$HOME/.local/share/lxc/${this.name}/config"`)
 	}
+
+	toJSON(){
+		return {
+			name: this.name
+		}
+	}
 }
 
 module.exports = {Local, Ssh, LXC};

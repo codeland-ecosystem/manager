@@ -23,6 +23,6 @@ module.exports = {
 	clworker: {
 		runnerTemplate: 'crunner0',
 		memTarget: 1,
-		minAvailableRunners: 10,
+		minAvailableRunners: 3,
 	},
 };

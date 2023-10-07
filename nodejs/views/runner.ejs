@@ -118,15 +118,28 @@
 
 
 		app.subscribe('cl:worker:runner:status:complete', function(data, topic){
-			data.durationHuman = moment.duration(data.duration).humanize();
 			$.scope.runnerInUse.update(data.runner, data);
 		});
 
 		app.subscribe(/^cl:worker:runner:status:/, function(data, topic){
 			topic = topic.split(':')
-			// console.log(data.runner, topic[4])
-			runnerStatus(data.runner, topic[4])
-			$.scope.workerInfomation.update(0, {runners:data})
+			console.log(data.runner, topic[4], data)
+
+			if(data.duration){
+				durationHuman = moment.duration(data.duration).humanize();
+				data.info = `Execution took ${durationHuman} <i>(${data.duration}ms)</i>`
+			}
+
+			if(data.error && data.error.name){
+				data.info = `Error: <b>${data.error.name}</b>`
+			}
+
+			$.scope.runnerInUse.update(data.runner, data)
+
+			setTimeout((data, topic)=>{
+				runnerStatus(data.runner, topic[4])
+
+			}, 100, data, topic)
 
 		})
 
@@ -255,7 +268,7 @@
 				<ul class="list-group">
 					<li id="runner-{{name}}" jq-repeat="runnerInUse" class="list-group-item list-group-item-warning" style="display:none">
 						<span>{{name}}</span> <br />
-						<span>Execution took {{durationHuman}} <i>({{duration}}ms)</i></span>
+						<span>{{{info}}}</span>
 					</li>
 				</ul>
 
