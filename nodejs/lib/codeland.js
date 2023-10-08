@@ -223,6 +223,7 @@ class CodeLandWorker{
 	async deleteUntracedRunners(){
 		for(let [name, runner] of Object.entries(await this.getCurrentCopies())){
 			if(!this.__runners[name]){
+				this.__ovenSetStatus('cleaning', `Removing zombie worker ${runner.name}`)
 				this.runnerFree(runner, false)
 				await sleep(1000);
 			}
@@ -310,7 +311,10 @@ class CodeLandWorker{
 			}else if(memory.percentUsed < this.memTarget) {
 				var ovenSize = Math.floor(this.minAvailableRunners/2);
 
-				this.__ovenSetStatus('cooking', 'memory not met')
+				this.__ovenSetStatus('cooking', {
+					message: 'memory not met',
+					cooking: ovenSize,
+				})
 			}else{
 				this.__ovenSetStatus('off', 'Nothing to cook, all conditions met')
 				if(!selfManagerDelay) break;
