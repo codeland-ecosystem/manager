@@ -268,8 +268,8 @@ class CodeLandWorker{
 
 	__ovenSetStatus(status, message){
 		let data = {
-			...(typeof message === 'object' ? message : {message: message}),
 			cooking: this.runnersCooking,
+			...(typeof message === 'object' ? message : {message: message}),
 			count: this.runnerCount,
 		}
 
