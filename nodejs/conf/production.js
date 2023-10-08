@@ -22,7 +22,7 @@ module.exports = {
 	},
 	clworker: {
 		runnerTemplate: 'crunner0',
-		memTarget: 35,
+		memTarget: 30,
 		minAvailableRunners: 10,
 	},
 };
