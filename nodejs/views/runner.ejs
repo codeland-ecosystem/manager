@@ -167,16 +167,11 @@
 			$('#workerStatus').hide();
 		});
 
-		app.socket.io.on("disconnect", () => {
-			console.log('dis2')
-		});
-
 
 		app.socket.io.on("reconnect", () => {
 		  	let $el = $('.jq-repeat-workerInfomation')
 			$el.removeClass('alert-danger')
 			$('#workerStatus').show();
-		  	
 		});
 
 
@@ -236,6 +231,10 @@
 			}})
 		});
 
+		app.subscribe(/error/, (data, topic)=>{
+			$.scope.errors.update({topic, data: JSON.stringify(data)});
+		})
+
 		app.subscribe('cl:worker:memory', function(data, topic){
 			// console.log(topic, data)
 			$.scope.workerInfomation.update({memory: parseMemory(data)});
@@ -247,15 +246,14 @@
 			)
 		});
 
-		setInterval($=>{
+		setInterval(()=>{
 			$('.momentUpdate').each((idx,el)=>{
 				try{
 			    	let txt = moment($(el).data('moment-time')).fromNow()
-			    	$(el).text(txt)
-
+			    	$.scope.workerInfomation.update({worker: {startedAgo: txt}})
 				}catch{}
 			})
-		}, 30000, $)
+		}, 30000, )
 
 	});
 </script>
@@ -393,10 +391,29 @@
 						{{name}}
 					</li>
 				</ul>
-
 			</div>
-		</div
-		>
+		</div>
+		
+		<br />
+
+		<div class="card shadow-lg">
+			<div class="card-header">
+				<i class="fas fa-layer-plus"></i>
+				Errors
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<div class="card-body">
+				<ul class="list-group">
+					<li id="runner-{{name}}" jq-repeat="errors" class="list-group-item list-group-item-danger" style="display:none">
+						<h6 class="card-title">{{topic}}</h6>
+						<p>
+							{{data}}
+						</p>
+					</li>
+				</ul>
+			</div>
+		</div>
+
 	</div>
 </div>
 <%- include('bottom') %>

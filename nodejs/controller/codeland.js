@@ -31,13 +31,17 @@ const clworker = new CodelandController({ssh, ...conf.clworker});
 (async function(){
   await clworker.init();
   setInterval(async (clworker)=>{
-    clworker.__log('memory', await clworker.ssh.memory())
-  }, 1000, clworker)
+    try{
+      clworker.__log('memory', await clworker.ssh.memory())
+    }catch{}
+  }, 2000, clworker)
   await clworker.deleteUntracedRunners();
   await clworker.runnerOven(10*1000);
   
   setInterval(async (clworker)=>{
-    clworker.__log('memory', await clworker.ssh.memory())
+    try{
+      clworker.__log('memory', await clworker.ssh.memory())
+    }catch{}
   }, 60*1000, clworker)
 
   clworker.__log('df', (await clworker.ssh.df())['/'])
