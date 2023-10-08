@@ -12,13 +12,12 @@ router.get('/', async(req, res, next)=>{
     for(const [name, runner] of Object.entries(clworker.__runners)){
       runners.push({
         name: name,
-        lastStatus: runner.lastStatus,
+        lastStatus: runner.lastStatus || '__none__',
         ...'detail' in req.query ? await runner.info() : undefined,
       });
     }
   
     return res.json({
-      memory: await clworker.ssh.memory(),
       runners: runners
       });
   }catch(error){

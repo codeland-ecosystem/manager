@@ -18,9 +18,11 @@ class CodelandController extends CodeLandWorker{
 
   __log(topic, message){
     topic = `cl:worker:${topic}`; 
-    ps.publish(topic , message);
     super.__log(topic, message);
+    ps.publish(topic , message);
   }
+
+
 }
 
 const clworker = new CodelandController({ssh, ...conf.clworker});
@@ -31,7 +33,7 @@ const clworker = new CodelandController({ssh, ...conf.clworker});
   clworker.__log('memory', await clworker.ssh.memory())
   clworker.__log('df', (await clworker.ssh.df())['/'])
   await clworker.deleteUntracedRunners();
-  await clworker.runnerFill();
+  await clworker.runnerOven(10*1000);
 
   setInterval(async (clworker)=>{
     clworker.__log('memory', await clworker.ssh.memory())

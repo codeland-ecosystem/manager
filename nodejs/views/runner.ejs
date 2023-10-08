@@ -3,6 +3,31 @@
 	div.card-body.jq-repeat-workerInfomation > ul > li.list-group-item{
 		padding: 2px;
 	}
+
+	.w3_tooltip {
+	  position: relative;
+	  display: inline-block;
+/*	  border-bottom: 1px dotted black;*/
+	}
+
+	.w3_tooltip .w3_tooltiptext {
+	  visibility: hidden;
+	  width: 14em;
+	  background-color: black;
+	  color: #fff;
+	  text-align: center;
+	  border-radius: 6px;
+	  padding: 5px;
+
+	  /* Position the w3_tooltip */
+	  position: absolute;
+	  z-index: 100;
+	}
+
+	.w3_tooltip:hover .w3_tooltiptext {
+	  visibility: visible;
+	}
+
 </style>
 <script type="text/javascript">
 
@@ -20,6 +45,13 @@
 
 	function parseMemory(memory){
 		
+		memory.cahcedAndBuffer = memory.cached + memory.buffers
+		memory.percentCahcedAndBuffer = (memory.cahcedAndBuffer/memory.total)*100
+
+		memory.cahcedAndBuffer2 = memory.available - memory.free
+		memory.percentCahcedAndBuffer2 = (memory.cahcedAndBuffer2/memory.total)*100
+
+
 		for(let [key, value] of Object.entries(memory)){
 
 			if(key.includes('percent')){
@@ -28,9 +60,26 @@
 			}
 			memory[key] = formatBytes(value)
 		}
-		memory.percenfreeDiff = memory.percentAvailable - memory.percentFree;
 
 		return memory;
+	}
+
+	function parseDf(df){
+		return {
+			filesystem: df.filesystem,
+			used: formatBytes(df.used),
+			total: formatBytes(df.total),
+			available: formatBytes(df.available),
+			percentUsed: df['use%'],
+		}
+	}
+
+	function parseWorker(worker){
+		 return {
+		 	...worker,
+			startedAgo: moment(worker.startedAt).fromNow(),
+			pubkey: worker.userHasKey ? '(pubkey)' : undefined,
+		 }
 	}
 
 	let runnerStatusMap = {
@@ -38,7 +87,7 @@
 		inUse: 'warning',
 		execute: 'success',
 		error: 'danger',
-		stopped: 'secondary',
+		free: 'secondary',
 	}
 
 
@@ -61,7 +110,7 @@
 
 		//   // set up animation for adding to taks list
 		// $.scope.runnerAvailable.__put = function(){
-		//     this.fadeIn( 'slow' );
+		//     this.slideDown( 'slow' );
 		// };
 
 		// // set up animation for removing taks from list
@@ -73,18 +122,17 @@
 
 		// // set up animation for adding to taks list
 		// $.scope.runnerInUse.__put = function(){
-		//     this.slideDown( 'slow' );
+		//     this.fadeIn( 'slow' );
 		// };
 
 		// // set up animation for removing taks from list
 		// $.scope.runnerInUse.__take = function(){
-		// 	this.slideUp( 'slow', function(){
+		// 	this.fadeOut( 'slow', function(){
 		// 		this.remove();
 		// 	});
 		// };
 
 		app.api.get('runner', function(err, data){
-			$.scope.workerInfomation.push({memory: parseMemory(data.memory)});
 			for(runner of data.runners){
 				if(runner.lastStatus !== 'available'){
 					$.scope.runnerInUse.push(runner)
@@ -95,21 +143,58 @@
 			}
 		});
 
+		app.api.get('worker', (err, data)=>{
+			$.scope.workerInfomation.update({
+				oven: data.oven,
+				df: parseDf(data.df),
+				memory: parseMemory(data.memory),
+				worker: parseWorker(data.worker),
+			});
+		});
+
+		app.subscribe('cl:worker:init', (data, topid)=>{
+			console.log('sub init')
+			$.scope.workerInfomation.update({worker:parseWorker(data)})
+			let $el = $('.jq-repeat-workerInfomation')
+			$el.addClass('alert-success')
+			setTimeout($el => $el.removeClass('alert alert-success'), 30000, $el);
+		});
+
+		app.socket.on("disconnect", () => {
+			console.log('dis1')
+			let $el = $('.jq-repeat-workerInfomation')
+			$el.addClass('alert-danger')
+			$('#workerStatus').hide();
+		});
+
+		app.socket.io.on("disconnect", () => {
+			console.log('dis2')
+		});
+
+
+		app.socket.io.on("reconnect", () => {
+		  	let $el = $('.jq-repeat-workerInfomation')
+			$el.removeClass('alert-danger')
+			$('#workerStatus').show();
+		  	
+		});
+
+
 		app.subscribe('cl:worker:runner:status:available', function(data, topic){
 			// console.log(topic, data)
 			$.scope.runnerAvailable.push({name: data.runner})
 		});
 
 		app.subscribe('cl:worker:runner:status:inUse', function(data, topic){
-			// console.log(topic, data)
+			// console.log(topic)
 			$.scope.runnerAvailable.splice(data.runner, 1)
 			// console.log('inUse', data.runner, topic.split(':')[4])
 			if($.scope.runnerInUse.indexOf(data.runner) === -1) $.scope.runnerInUse.push({name: data.runner})
 			runnerStatus(data.runner, topic.split(':')[4])
 		});
 
-		app.subscribe('cl:worker:runner:free:success', function(data, topic){
-			// console.log(topic, data)
+		app.subscribe('cl:worker:runner:status:free:success', function(data, topic){
+			// console.log('free', topic)
 			setTimeout((data, topic)=>{
 				$.scope.runnerInUse.splice(data.runner, 1)
 				$.scope.runnerAvailable.splice(data.runner, 1)
@@ -117,13 +202,13 @@
 		});
 
 
-		app.subscribe('cl:worker:runner:status:complete', function(data, topic){
-			$.scope.runnerInUse.update(data.runner, data);
-		});
+		// app.subscribe('cl:worker:runner:status:complete', function(data, topic){
+		// 	$.scope.runnerInUse.update(data.runner, data);
+		// });
 
 		app.subscribe(/^cl:worker:runner:status:/, function(data, topic){
+			// console.log('regex', topic)
 			topic = topic.split(':')
-			console.log(data.runner, topic[4], data)
 
 			if(data.duration){
 				durationHuman = moment.duration(data.duration).humanize();
@@ -137,51 +222,69 @@
 			$.scope.runnerInUse.update(data.runner, data)
 
 			setTimeout((data, topic)=>{
-				runnerStatus(data.runner, topic[4])
+				runnerStatus(data.runner, data.error || topic[4])
 
 			}, 100, data, topic)
 
 		})
 
-		app.subscribe(/^cl:worker:runner:fill:/, function(data, topic){
-				topic = topic.split(':')
-				// console.log(topic[4], data)
-				$.scope.workerInfomation.update(0, {
-					...data,
-					status: topic[4]
-				})	
-		})
+		app.subscribe(/^cl:worker:oven/, function(data, topic){
+			// console.log(topic, data)
+			$.scope.workerInfomation.update({oven:{
+				...data,
+				status: topic.split(':')[4]
+			}})
+		});
 
 		app.subscribe('cl:worker:memory', function(data, topic){
 			// console.log(topic, data)
-			$.scope.workerInfomation.update(0, {memory: parseMemory(data)});
+			$.scope.workerInfomation.update({memory: parseMemory(data)});
 		});
 
 		app.subscribe('cl:worker:df', function(data, topic){
-			data = {
-				df: {
-					filesystem: data.filesystem,
-					used: formatBytes(data.used),
-					total: formatBytes(data.total),
-					available: formatBytes(data.available),
-					percentUsed: data['use%'],
-				}
-			}
-
-			$.scope.workerInfomation.update(0, data);
+			console.log('sub df',
+				$.scope.workerInfomation.update({df: parseDf(data)})
+			)
 		});
+
+		setInterval($=>{
+			$('.momentUpdate').each((idx,el)=>{
+				try{
+			    	let txt = moment($(el).data('moment-time')).fromNow()
+			    	$(el).text(txt)
+
+				}catch{}
+			})
+		}, 30000, $)
+
 	});
 </script>
 <div class="row" style="display:none">
 
 	<div class="col-md-4">
-		<div class="card shadow-lg" jq-repeat="workerInfomation">
+		<div class="card shadow-lg">
 			<div class="card-header">
+				<div id="workerStatus" class="float-right spinner-grow spinner-grow-sm text-success" role="status">
+				  <span class="sr-only">Loading...</span>
+				</div>
 				<i class="fas fa-layer-plus"></i>
 				Worker Information
+
 			</div>
 			<div class="card-header actionMessage" style="display:none"></div>
-			<div class="card-body">
+			<div class="card-body" jq-repeat="workerInfomation">
+
+				<div id="clWokerInformation" class="card-text">
+					<span> Environment: <b>{{worker.environment}}</b> </span> <br/>
+					<span> Host: <b>{{worker.location}}</b> </span> <br/>
+					<span> Host user: <b>{{worker.user}}</b> <i>{{worker.pubkey}}</i> </span> <br/>
+					<span class="w3_tooltip">
+						Manger service started <b class="momentUpdate" data-moment-time="{{worker.startedAt}}">{{worker.startedAgo}}</b> 
+						<span class="w3_tooltiptext">{{worker.startedAt}}</span>
+					</span>
+				</div>
+
+				<hr />
 
 				<h4 class="card-title">Memory</h4>
 				<ul class="list-group list-group-flush">
@@ -189,21 +292,21 @@
 						 Total: <b>{{memory.total}}</b> 
 					</li>
 					<li class="list-group-item list-group-item-danger">
-						 Used: <b >{{memory.used}} {{memory.percentUsedFloor}}%</b> 
+						 Used: <b >{{memory.used}}</b> <i>{{memory.percentUsedFloor}}%</i> 
+					</li>
+					<li class="list-group-item list-group-item-secondary">
+						 Buffer+Cache: <b>{{memory.cahcedAndBuffer2}}</b> <i>{{memory.percentCahcedAndBuffer2Floor}}%</i>
 					</li>
 					<li class="list-group-item list-group-item-success">
-						 Available: <b>{{memory.available}} {{memory.percentAvailableFloor}}%</b>
-					</li>
-					<li class="list-group-item list-group-item-warning">
-						 Free: <b>{{memory.free}} {{memory.percentFreeFloor}}%</b>
+						 Free: <b>{{memory.free}}</b> <i>{{memory.percentFreeFloor}}%</i>
 					</li>
 				</ul>
 
 				<br />
 				<div class="progress">
 				  <div class="progress-bar bg-danger" role="progressbar" style="width: {{memory.percentUsed}}%" aria-valuenow="{{memory.percentUsed}}" aria-valuemin="0" aria-valuemax="100"></div>
-				  <div class="progress-bar bg-success" role="progressbar" style="width: {{memory.percenfreeDiff}}%" aria-valuenow="{{memory.percenfreeDiff}}" aria-valuemin="0" aria-valuemax="100"></div>
-				  <div class="progress-bar bg-warning" role="progressbar" style="width: {{memory.percentFree}}%" aria-valuenow="{{memory.percentFree}}" aria-valuemin="0" aria-valuemax="100"></div>
+				  <div class="progress-bar bg-secondary" role="progressbar" style="width: {{memory.percentCahcedAndBuffer2}}%" aria-valuenow="{{memory.percentCahcedAndBuffer2}}" aria-valuemin="0" aria-valuemax="100"></div>
+				  <div class="progress-bar bg-success" role="progressbar" style="width: {{memory.percentFree}}%" aria-valuenow="{{memory.percentFree}}" aria-valuemin="0" aria-valuemax="100"></div>
 				</div>
 					
 				<hr />
@@ -224,12 +327,12 @@
 
 				<hr />
 
-				<h4 class="card-title">Runner oven</h4>
+				<h4 class="card-title">Runner Oven</h4>
 				<p class="card-text">
-					<span> Cooking: <b>{{runnersCooking}}</b> </span> <br/>
-					<span> Available: <b>{{AvailableRunners}}</b> </span> <br/>
-					<span> Status: <b>{{status}}</b> </span> <br/>
-					<span> Message: <b>{{message}}</b> </span> <br/>
+					<span> Cooking: <b>{{oven.cooking}}</b> </span> <br/>
+					<span> Available: <b>{{oven.count}}</b> </span> <br/>
+					<span> Status: <b>{{oven.status}}</b> </span> <br/>
+					<span> Message: <b>{{oven.message}}</b> </span> <br/>
 				</p>
 
 			</div>
@@ -292,12 +395,8 @@
 				</ul>
 
 			</div>
-		</div>
+		</div
+		>
 	</div>
-
-
-
-
-
 </div>
 <%- include('bottom') %>

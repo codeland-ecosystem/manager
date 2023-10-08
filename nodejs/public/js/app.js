@@ -43,7 +43,7 @@ app.pubsub = (function(){
 	return this;
 })(app);
 
-app.io = (function(app){
+app.socket = (function(app){
 	var socket = io();
 	// socket.emit('chat message', $('#m').val());
 	socket.on('P2PSub', function(msg){
@@ -59,7 +59,7 @@ app.io = (function(app){
 	  socket.emit('P2PSub', { topic, data })
 	});
 
-	return io;
+	return socket;
 
 })(app);
 

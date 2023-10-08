@@ -25,22 +25,25 @@
 				configurable: true
 			} );
 
-			result.__rq_template = $( document.getElementById( repeatId + 'Template' ).outerHTML ).html()
-
-			result.splice = function(index, ...args){
+			result.splice = function(inputValue, ...args){
 				//splice does all the heavy lifting by interacting with the DOM elements.
 
-				// var index;
+				var toProto = [...args]
+
+				var index;
 				//if a string is submitted as the index, try to match it to index number
 				if( typeof arguments[0] === 'string' ){
 					index = this.indexOf( arguments[0] );//set where to start
 					if ( index === -1 ) {
-						console.log('NOT FOUND!!!!!!!!!!!!!!!!', index, arguments)
-						return -1;
+						return [];
 					}
 				}else{
 					index = arguments[0]; //set where to start
 				}
+
+				toProto.unshift(index)
+
+
 				var howMany = arguments[1]; //sets the amount of fields to remove
 				var args = Array.prototype.slice.call( arguments ); // coverts arguments into array 
 				var toAdd = args.slice(2); // only keeps fields to add to array
@@ -70,10 +73,7 @@
 				// var newLength = this.length + shift;
 
 				//removes fields from array based on howMany needs to be removed
-
-				console.log('to remove count', index, index+howMany)
 				for( var i = index; i < +index+howMany; i++ ) {
-					console.log('to remove', i, index, this[index].name)
 					this.__take.apply( this[index].__jq_$el  );
 					// this.__take.apply( $( '.jq-repeat-'+ this.__repeatId +'[jq-repeat-index="'+ ( i + index ) +'"]' ) );
 				}
@@ -81,7 +81,7 @@
 				//re-factor element index's
 				for(var i = 0; i < this.length; i++){
 					if(  i >= index){
-						console.log('loop var', i, 'starting index', index, 'shift', shift, 'new', i+shift,  this[i].name)
+
 						this[i].__jq_$el.attr( 'jq-repeat-index', i+shift );
 					}
 				}
@@ -121,8 +121,7 @@
 				}
 				
 				//set and return new array
-				console.log('to prototype', index, ...args)
-				return Array.prototype.splice.call( this, index, ...args );
+				return Array.prototype.splice.apply(this, toProto);
 			};
 			result.push = function(){
 				//add one or more objects to the array
@@ -175,9 +174,8 @@
 					key = this.__index;
 				}
 				for ( var index = 0; index < this.length; ++index ) {
-					console.log('indexOf', index, key, value, this[index][key], this[index])
 					if( this[index][key] === value ){
-						console.log('indexOf2', index, key, value, this[index][key], this[index])
+
 						return index;
 					}
 				}
@@ -185,6 +183,15 @@
 			};
 			result.update = function( key, value, update ){
 				//set variables using sting for index
+
+				// If update is called with no index/key, assume its the 0
+				if(typeof key === 'object'){
+					if(this[0]){
+						return this.update(0, key);
+					}
+					return this.splice(0, 1, key);
+				}
+
 				if( typeof value !== 'string' ){
 					update = arguments[1];
 					value = arguments[0];
@@ -238,13 +245,15 @@
 		var templateId = $( '#' + tempId ).html();
 
 		$this.removeAttr( 'jq-repeat' );
-		$this.wrap( '<script type="x-tmpl-mustache" id="' + tempId + '" class="jq-repeat-' + repeatId + ' " jq-repeat-index="holder"><\/script>' );
+		 var template = element.outerHTML
+
+		$this.replaceWith( '<script type="x-tmpl-mustache" id="' + tempId + '" class="jq-repeat-' + repeatId + ' " jq-repeat-index="holder"><\/script>' );
 		
 		Mustache.parse(templateId);   // optional, speeds up future uses
 
 
 		$.scope[repeatId] = makeArray($.scope[repeatId]);
-		//return {};
+		$.scope[repeatId].__rq_template = template
 	};
 
 	$( document ).ready( function(){
@@ -253,7 +262,6 @@
 		});
 
 		$(document).on('DOMNodeInserted', function(e) {
-			//console.log(e.target.is('[jq-repeat]'));
 			if ( $(e.target).is('[jq-repeat]') ){
 				make( e.target );
 			}else{

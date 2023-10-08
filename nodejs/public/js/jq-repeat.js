@@ -167,6 +167,15 @@
 			};
 			result.update = function( key, value, update ){
 				//set variables using sting for index
+
+				// If update is called with no index/key, assume its the 0
+				if(typeof key === 'object'){
+					if(this[0]){
+						return this.update(0, key);
+					}
+					return this.splice(0, 1, key);
+				}
+
 				if( typeof value !== 'string' ){
 					update = arguments[1];
 					value = arguments[0];
