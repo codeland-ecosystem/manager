@@ -11,6 +11,9 @@ module.exports = {
 		userFilter: '(objectClass=posixAccount)',
 		userNameAttribute: 'uid'
 	},
+	redis: {
+		// prefix: 'cl-manager-dev_'
+	},
 	httpProxyAPI:{
 		host: 'http://10.2.0.51:3000',
 		key: '__IN SRECREST FILE__'
@@ -22,7 +25,7 @@ module.exports = {
 	},
 	clworker: {
 		runnerTemplate: 'crunner0',
-		memTarget: 15,
-		minAvailableRunners: 5,
+		memTarget: 1,
+		minAvailableRunners: 10,
 	},
 };

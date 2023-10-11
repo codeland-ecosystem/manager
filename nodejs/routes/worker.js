@@ -24,5 +24,21 @@ router.get('/', async(req, res, next)=>{
 	})
 });
 
+router.get('/zombies', async (req, res, next)=>{
+	try{
+		res.json({res: await clworker.getCurrentCopies()})
+	}catch(error){
+		next(err);
+	}
+})
+
+router.delete('/zombies', (req, res, next)=>{
+	try{
+		clworker.deleteUntracedRunners()
+		res.json({res: 'working...'})
+	}catch(error){
+		next(err);
+	}
+})
 
 module.exports = router;

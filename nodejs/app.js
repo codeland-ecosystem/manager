@@ -58,6 +58,11 @@ app.use('/', require('./routes/render'));
 // API route
 app.use('/api/v1', require('./routes/api_v1'));
 
+const nm_dependencies = ['ace-builds', 'xterm']; // keep adding required node_modules to this array.
+nm_dependencies.forEach(dep => {
+  app.use(`/static-modules/${dep}`, express.static(path.resolve(`node_modules/${dep}`)));
+});
+
 // Catch 404 and forward to error handler. If none of the above routes are
 // used, this is what will be called.
 app.use(function(req, res, next) {

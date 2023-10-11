@@ -3,7 +3,7 @@
 
 	app.auth.isLoggedIn(function(error, isLoggedIn){
 		if(isLoggedIn){
-			window.location.href = app.util.getUrlParameter('redirect') || '/topics';
+			window.location.href = app.util.getUrlParameter('redirect') || '/runner';
 		}
 	})
 
@@ -30,7 +30,7 @@
 						  <div class="input-group-prepend">
 						    <span class="input-group-text" ><i class="fad fa-user"></i></span>
 						  </div>
-							<input type="text" name="uid" class="form-control" placeholder="jsmith" validate="user:3" />
+							<input type="text" name="uid" class="form-control" placeholder="jsmith" />
 						</div>
 					</div>
 

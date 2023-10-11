@@ -12,7 +12,7 @@ router.get('/', async(req, res, next)=>{
     for(const [name, runner] of Object.entries(clworker.__runners)){
       runners.push({
         name: name,
-        lastStatus: runner.lastStatus || '__none__',
+        lastStatus: runnerlastStatus || '__none__',
         ...'detail' in req.query ? await runner.info() : undefined,
       });
     }

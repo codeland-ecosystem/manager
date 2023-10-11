@@ -30,4 +30,8 @@ router.get('/runner', function(req, res, next) {
   res.render('runner', {...values});
 });
 
+router.get('/worker', function(req, res, next) {
+  res.render('worker', {...values});
+});
+
 module.exports = router;

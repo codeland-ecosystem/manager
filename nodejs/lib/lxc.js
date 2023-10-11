@@ -61,6 +61,8 @@ class LXC{
 		// console.log('lxc args', args)
 		this.name = args.name
 		this.execInstance = args.execInstance || this.constructor.execInstance;
+		this.ephemeralHack = args.ephemeralHack
+		this.base = args.base
 	}
 
 	async sysExec(command){
@@ -74,12 +76,13 @@ class LXC{
 	async copy(newName, ephemeral=false){
 		try{
 			let res = await this.sysExec(
-				`lxc-copy --name "${this.name}" --newname "${newName}" --daemon ${ephemeral ? '--ephemeral' : ''}`
+				`~/.local/bin/lxc-copy --name "${this.name}" --newname "${newName}" --daemon ${ephemeral ? '--ephemeral' : ''}`
 			);
 
 			return new LXC({
 				name: newName,
 				execInstance: this.execInstance,
+				base: this
 			});
 
 		}catch(error){
@@ -93,7 +96,7 @@ class LXC{
 
 	async start(){
 		try{	
-			return await this.sysExec(`lxc-start --name "${this.name}" --daemon`);
+			return await this.sysExec(`~/.local/bin/lxc-start --name "${this.name}" --daemon`);
 		}catch(error){
 			throw error;
 		}
@@ -112,8 +115,10 @@ class LXC{
 
 	async destroy(){
 		try{
-			let res = await this.sysExec(`lxc-destroy --force --name ${this.name}`)
 
+			// if(this.ephemeralHack) return await this.destroyEphemeral();
+
+			let res = await this.sysExec(`lxc-destroy --force --name ${this.name} logpriority=debug`)
 			return true;
 		}catch(error){
 			if(error.stderr.includes('Container is not defined')) throw this.errors.LXCNotFound(this.name)
@@ -132,7 +137,7 @@ class LXC{
 	async exec(code){
 		try{
 			code = new Buffer.from(code).toString('base64')
-			return await this.sysExec(`lxc-attach -n "${this.name}" --clear-env -- bash -c 'echo "${code}" | base64 --decode | bash'`)
+			return await this.sysExec(`~/.local/bin/lxc-attach -n "${this.name}" --clear-env -- bash -c 'echo "${code}" | base64 --decode | bash'`)
 		}catch(error){
 			throw error;
 		}
@@ -162,15 +167,50 @@ class LXC{
 		}
 	}
 
+	async startEphemeral(newName){
+		try{
+			let res = await this.sysExec(
+				`~/.local/bin/lxc-start-ephemeral "${this.name}" "${newName}"`
+			);
+
+			return new LXC({
+				name: newName,
+				execInstance: this.execInstance,
+				base: this,
+				ephemeralHack: true,
+			});
+
+		}catch(error){
+			throw error
+		}
+	}
+
+	async destroyEphemeral(name){
+
+		// if(!this.ephemeralHack) return await this.destroy();
+
+		try{
+			name = this.name || name
+			let res = await this.sysExec(
+				`~/.local/bin/lxc-destroy-ephemeral "${name}"`
+			);
+
+			return true;
+		}catch(error){
+			throw error;
+		}
+	}
+
 	async setAutoStart(name){
 		await this.sysExec(`echo "lxc.start.auto = 1" >>  "$HOME/.local/share/lxc/${this.name}/config"`)
 	}
 
-	toJSON(){
-		return {
-			name: this.name
-		}
-	}
+	// toJSON(){
+	// 	return {
+	// 		name: this.name
+
+	// 	}
+	// }
 }
 
 module.exports = {Local, Ssh, LXC};

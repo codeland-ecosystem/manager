@@ -58,6 +58,8 @@ async function* whenReady(promiseFunc, want, delay, ...args) {
         working--;
       }
     })();
+
+    await sleep(500);
   }
 }
 
@@ -129,6 +131,22 @@ class CodeLandWorker{
 		});
 	}
 
+	__ovenSetStatus(status, message){
+		let data = {
+			cooking: this.runnersCooking,
+			...(typeof message === 'object' ? message : {message: message}),
+			count: this.runnerCount,
+		}
+
+		this.ovenStatus = {
+			...this.ovenStatus,
+			...data,
+			status
+		};
+
+		this.__log(`oven:status:${status}`, data)
+	}
+
 	/*
 		In order to guarantee the passed LXC template is valid, we must make
 		async calls, so this the the correct method to make new Code land
@@ -189,13 +207,6 @@ class CodeLandWorker{
 		}
 	}
 
-	get oven(){
-		return {
-			...this.__oven,
-			available: this.runnerCount,
-		}
-	}
-
 	get runnerCount(){
 		return Object.keys(this.__runners).length;
 	}
@@ -223,12 +234,18 @@ class CodeLandWorker{
 	async deleteUntracedRunners(){
 		for(let [name, runner] of Object.entries(await this.getCurrentCopies())){
 			if(!this.__runners[name]){
-				this.__ovenSetStatus('cleaning', `Removing zombie worker ${runner.name}`)
-				this.runnerFree(runner, false)
-				await sleep(1000);
+				(async ()=>{
+					this.__ovenSetStatus('cleaning', `Removing zombie worker ${runner.name}`)
+					await this.runnerFree(runner, false)
+					await sleep(100)
+				})()
+				await sleep(250);
 			}
+					// await this.ssh.exec(`clean_crunners.sh ${runner.name.replace('crunner0-', '')}`)
 		}
 	}
+
+	// async runnerForceClean()
 
 	/*
 		Make new runners, wait for them to be ready and add them to the array
@@ -244,42 +261,30 @@ class CodeLandWorker{
 	
 			this.__runnerSetStatus(name, 'oven:cooking');
 			this.runnersCooking++
-			runner = await this.runnerTemplate.copy(name, true);
+			runner = await this.runnerTemplate.startEphemeral(name);
 
 
 			let tryCount = 0;
+			let runnerInfo = {};
 
-			while(!(await runner.info()).ip){
-				if(tryCount++ === 20){ // after 3 seconds, give up
+			while(!runnerInfo.ip){
+				await sleep(1500);
+				runnerInfo = await runner.info();
+				if(tryCount++ === 10){ // give up
 					throw new Error('Timeout waiting on LXC IP');
 				}
-				await sleep(500);
+				if(runnerInfo.state !== "RUNNING") throw new Error('LXC failed to start')
 			}
 			this.__runnerSetStatus(runner, 'available',);
 
 			return runner;
 		}catch(error){
 			this.__runnerSetStatus(runner || name, 'oven:error',{error});
+			if(runner) runner.destroyEphemeral();
 			throw error;
 		}finally{
 			--this.runnersCooking
 		}
-	}
-
-	__ovenSetStatus(status, message){
-		let data = {
-			cooking: this.runnersCooking,
-			...(typeof message === 'object' ? message : {message: message}),
-			count: this.runnerCount,
-		}
-
-		this.ovenStatus = {
-			...this.ovenStatus,
-			...data,
-			status
-		};
-
-		this.__log(`oven:status:${status}`, data)
 	}
 
 	/*
@@ -302,7 +307,9 @@ class CodeLandWorker{
 				await sleep(3000)
 				continue;
 			}else if(this.minAvailableRunners > Object.keys(this.__runners).length){
-				var ovenSize = this.minAvailableRunners - Object.keys(this.__runners).length
+				var ovenSize = 3;// = this.minAvailableRunners - Object.keys(this.__runners).length
+					 
+
 
 				this.__ovenSetStatus('cooking', {
 					message: `min runner count not met, oven size ${ovenSize}`,
@@ -310,6 +317,7 @@ class CodeLandWorker{
 				})
 			}else if(memory.percentUsed < this.memTarget) {
 				var ovenSize = Math.floor(this.minAvailableRunners/2);
+					ovenSize = (ovenSize%3)+1
 
 				this.__ovenSetStatus('cooking', {
 					message: 'memory not met',
@@ -358,13 +366,11 @@ class CodeLandWorker{
 			}
 			if(!(runner instanceof LXC)) throw new Error('runnerNotLXC');
 
-			await runner.destroy();
+			await runner.destroyEphemeral(name);
 		}catch(error){
 			this.__runnerSetStatus(name, 'free:error', {error})
 		}
 		this.__runnerSetStatus(name, 'free:success')
-		
-		console.log('end of oven', this.__runners[name])
 
 		if(callOven) this.runnerOven(false);
 	}
@@ -380,7 +386,7 @@ class CodeLandWorker{
 				return runner
 			}
 		}
-
+		this.__runnerSetStatus('__none__', this.errors.runnerNotAvailable());
 		throw this.errors.runnerNotAvailable();
 	}
 
@@ -402,6 +408,7 @@ class CodeLandWorker{
 		try{
 			this.__runnerSetStatus(runner, 'execute');
 
+
 			let res = await axios.post(`http://${this.ssh.host}/`, {
 				code: code
 			}, {
@@ -410,6 +417,7 @@ class CodeLandWorker{
 				},
 				timeout: time ? time*1000 : undefined,
 			});
+
 
 			const endTime = new Date();
 			const duration = endTime - startTime
@@ -447,6 +455,7 @@ class CodeLandWorker{
 		}
 	}
 }
+
 
 module.exports = {CodeLandWorker, Ssh};
 

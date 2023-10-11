@@ -3,6 +3,7 @@
 const ps = require('./pubsub.js'); 
 const {Ssh, CodeLandWorker} = require('../lib/codeland');
 const conf = require('../conf')
+
 const ssh = new Ssh(conf.ssh);
 
 class CodelandController extends CodeLandWorker{
@@ -19,6 +20,12 @@ class CodelandController extends CodeLandWorker{
   __log(topic, message){
     topic = `cl:worker:${topic}`; 
     super.__log(topic, message);
+
+    if(message.error){
+      let error = message.error;
+      message.error = `${error.name} -- ${error.message}`
+    }
+
     ps.publish(topic , message);
   }
 

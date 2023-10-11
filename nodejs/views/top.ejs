@@ -5,18 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 		<title>Codeland Manager <%= title %></title>
 		<!-- CSS are placed here -->
-		<link rel="stylesheet" href="/static/css/bootstrap-4.4.1.min.css">
+		<link rel="stylesheet" href="/static/lib/css/bootstrap-4.4.1.min.css">
 		<link rel='stylesheet' href='/static/css/styles.css' />
 		<!-- Scripts are placed here -->
 		<script type="text/javascript" src="/socket.io/socket.io.js"></script>
-		<script type="text/javascript" src='/static/js/jquery-3.5.0.min.js'></script>
-		<script type="text/javascript" src="/static/js/popper-1.16.0.min.js"></script>
-		<script type="text/javascript" src="/static/js/bootstrap-4.4.1.min.js"></script>
-		<script type="text/javascript" src="/static/js/all.min.js"></script>
-		<script type="text/javascript" src='/static/js/mustache.min.js'></script>
-		<script type="text/javascript" src='/static/js/jq-repeat_new.js'></script>
-		<script type="text/javascript" src="/static/js/val.js"></script>
-		<script type="text/javascript" src="/static/js/moment.js"></script>
+		<script type="text/javascript" src='/static/lib/js/jquery-3.5.0.min.js'></script>
+		<script type="text/javascript" src="/static/lib/js/popper-1.16.0.min.js"></script>
+		<script type="text/javascript" src="/static/lib/js/bootstrap-4.4.1.min.js"></script>
+		<script type="text/javascript" src="/static/lib/js/all.min.js"></script>
+		<script type="text/javascript" src='/static/lib/js/mustache.min.js'></script>
+		<script type="text/javascript" src='/static/lib/js/jq-repeat_new.js'></script>
+		<script type="text/javascript" src="/static/lib/js/val.js"></script>
+		<script type="text/javascript" src="/static/lib/js/moment.js"></script>
 		<script type="text/javascript" src="/static/js/app.js"></script>
 
 
@@ -27,15 +27,37 @@
 		<![endif]-->
 	</head>
 	<body>
-		<header class="shadow d-flex flex-column flex-md-row align-items-center p-3 px-md-4 mb-3 bg-white border-bottom shadow-sm">
-			<h5 class="hover-effect my-0 mr-md-auto font-weight-normal">Codeland Manager <%= title %></h5>
-			<nav class="my-2 my-md-0 mr-md-3">
-				<a class="text-dark hover-effect" href="/Runner"><i class="fad fa-tachometer-alt-fastest"></i> Runner</a>
-				<a class="text-dark hover-effect" href="/topics"><i class="fad fa-tachometer-alt-fastest"></i> Topics</a>
-			</nav>
-			<a class="hover-effect btn btn-outline-primary" onclick="app.auth.logOut(e => window.location.href='/')"><i class="fas fa-sign-out"></i> Log Out</a>
 
-		</header>
+		<nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+		  <a class="navbar-brand" href="#">Codeland Manager <%= title %></a>
+		  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+		    <span class="navbar-toggler-icon"></span>
+		  </button>
+		  <div class="collapse navbar-collapse" id="navbarCollapse">
+		    <ul class="navbar-nav mr-auto">
+		      <li class="nav-item active">
+						<a class="nav-link" href="/Runner"> Runner</a>
+		        <!-- <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a> -->
+		      </li>
+		      <li class="nav-item">
+						<a class="nav-link" href="/Worker"> Worker</a>
+		        <!-- <a class="nav-link" href="#">Link</a> -->
+		      </li>
+		      <li class="nav-item">
+						<a class="nav-link" href="/topics"> Topics</a>
+		        <!-- <a class="nav-link">Disabled</a> -->
+		      </li>
+		    </ul>
+		    <form class="form-inline mt-2 mt-md-0">
+				<button class="hover-effect btn btn-outline-primary" onclick="app.auth.logOut(e => window.location.href='/')"><i class="fas fa-sign-out"></i> Log Out</button>
+
+<!-- 		      <input class="form-control mr-sm-2" type="text" placeholder="Search" aria-label="Search">
+		      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button> -->
+		    </form>
+		  </div>
+		</nav>
+
+
 
 		<!-- Container -->
-		<div class="container">
+		<div id="spa-shell" class="container-fluid">
