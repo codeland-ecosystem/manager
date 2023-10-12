@@ -17,7 +17,7 @@
 		<script type="text/javascript" src="/static-modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
 		<script type="text/javascript" src='/static-modules/mustache/mustache.min.js'></script>
 		<script type="text/javascript" src='/static/lib/js/jq-repeat_new.js'></script>
-		<script type="text/javascript" src="/static-modules/moment/dist/moment.js"></script>
+		<script type="text/javascript" src="/static-modules/moment/moment.js"></script>
 		<script type="text/javascript" src="/static/js/app.js"></script>
 
 
@@ -34,8 +34,8 @@
 		  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
 		    <span class="navbar-toggler-icon"></span>
 		  </button>
-		  <div class="collapse navbar-collapse" id="navbarCollapse">
-		    <ul class="navbar-nav mr-auto">
+		  <div class="collapse navbar-collapse justify-content-end" id="navbarCollapse">
+		    <ul class="navbar-nav ">
 		      <li class="nav-item active">
 						<a class="nav-link" href="/Runner"> Runner</a>
 		        <!-- <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a> -->
@@ -50,7 +50,10 @@
 		      </li>
 		    </ul>
 		    <form class="form-inline mt-2 mt-md-0">
-				<button class="hover-effect btn btn-outline-primary" onclick="app.auth.logOut(e => window.location.href='/')"><i class="fas fa-sign-out"></i> Log Out</button>
+				<button class="btn btn-outline-danger my-2 my-sm-0" onclick="app.auth.logOut(e => window.location.href='/')">
+					<i class="fas fa-sign-out"></i>
+					Log Out
+				</button>
 
 <!-- 		      <input class="form-control mr-sm-2" type="text" placeholder="Search" aria-label="Search">
 		      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button> -->

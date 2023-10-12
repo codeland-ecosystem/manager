@@ -14,8 +14,8 @@
 		padding: 0 !important;
 	}
 
-	#codeland-col {
-/*		padding-bottom: 1em;*/
+	.codeland-col {
+		padding-bottom: 1em;
 	}
 
 	#codeland-card {
@@ -48,8 +48,6 @@
 	}
 
 
-
-
 </style>
 
 <script type="text/javascript">
@@ -80,11 +78,11 @@
 
 		editor.setShowInvisibles(true);
 
-		// editor.setOptions({
-		//     enableBasicAutocompletion: true,
-		//     enableSnippets: true,
-		//     enableLiveAutocompletion: true
-		// });
+		editor.setOptions({
+		    enableBasicAutocompletion: true,
+		    enableSnippets: true,
+		    enableLiveAutocompletion: true
+		});
 
 		// editor.commands.addCommands([
 		//     {
@@ -106,12 +104,13 @@
 		term.loadAddon( fitAddon );
 		term.open(document.getElementById('codeland-results'));
 		fitAddon.fit()
+		
 
 		$(window).resize(function(){
 		  fitAddon.fit()
 		});
 
-		$runForm = $('#clodelandRun');
+		$editorSettings = $('.clodelandSettings');
 		$spinner = $('#workerStatus');
 		$results = $('#codeland-results');
 		$codelandKeyboardSelect = $('#codelandKeyboardSelect');
@@ -144,6 +143,7 @@
 		const urlMap = {
 			language: updateLanguage,
 			keyboard: updateKeybpard,
+			code:updatCode
 		};
 
 		function parseHash(){
@@ -170,23 +170,49 @@
 			}
 		}
 
-		$runForm.find('#execute').on('click', function(){
-			$runForm.hide()
+		function updatCode(code, appendURL){
+			code = atob(code)
+			editor.setValue(code)
+		}
+
+		function setCode(code){
+			code = btoa(code)
+			updateURL('language', currentLanguage)
+			updateURL('code', code)
+		}
+
+		$('#share').on('click', function(){
+			setCode(editor.getValue());
+		})
+
+		$('#execute').on('click', function(){
+			$editorSettings.hide()
 			$spinner.show()
-
+			app.util.actionMessage(`Executing...`, $('#codeland-results'), 'warning')
+			fitAddon.fit()
+			
 			app.codeland.once(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
-				if(err){
-					alert("ERROR!")
-					console.log('err', err)
-				}
-
-				$runForm.show()
+				$editorSettings.show()
 				$spinner.hide()
+				
+				if(err){
+					console.log(err, data)
+					let message = (data && data.message) || err.message || err;
+					app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
+					fitAddon.fit()
+					return;
+				}
+				app.util.actionMessage('', $('#codeland-results'))
 				term.clear()
 
 				for(let line of data.res.split('\n')){
 					term.writeln(line)
 				}
+
+				$.scope.runInformation.update(data)
+				$('.results-buttons').find('button').each(function(){
+					$(this).removeClass('disabled')
+				})
 
 			})
 		});
@@ -202,79 +228,97 @@
 	});
 </script>
 <div class="row" style="height: 100%">
-	<div id="codeland-col" class="col-md-6" style="height: 100%;">
+	<div class="codeland-col col-md-6" style="height: 100%;">
 		<div id="codeland-card" class="card shadow-lg">
-			<div class="card-header">
-				<span class="float-right">
-					
+			<nav class="card-header navbar navbar-dark bg-dark">
+				<a class="navbar-brand">
+					<i class="fa-solid fa-code"></i>
+					Editor
+				</a>
+				<div class="d-inline">
 					<div id="workerStatus" class="spinner-grow spinner-grow-sm text-success" role="status" style="display:none">
 						<span class="sr-only">Loading...</span>
 					</div>
-					<div id="clodelandRun">
-						<div class="form-row align-items-center">
-							<div class="col-auto my-1">
 
-								<div id="codelandKeyboardSelect" class="btn-group">
-									<button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
-										<img src="/static/svg/sublime-text.svg" height="16px" /> Sublime
-									</button>
-									<div class="dropdown-menu">
-										<a class="dropdown-item active" value="sublime"><img src="/static/svg/sublime-text.svg" height="16px" /> Sublime</a>
-										<a class="dropdown-item" value="vscode"><img src="/static/svg/vscode.svg" height="16px" /> VS Code</a>
-									</div>
-								</div>
+			 			<button id="share" class="btn btn-outline-success btn-sm clodelandSettings">
+							<i class="fa-solid fa-share-from-square"></i>
+							Share
+						</button>
 
-
-								<div id="codelandLanguageSelect" class="btn-group">
-									<button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
-										<i class="fa-solid fa-hashtag"></i> Bash
-									</button>
-									<div class="dropdown-menu">
-										<a class="dropdown-item active" value="sh"><i class="fa-solid fa-hashtag"></i> Bash</a>
-										<a class="dropdown-item" value="javascript"><i class="fa-brands fa-node-js"></i> JavaScript</a>
-										<a class="dropdown-item" value="python"><i class="fa-brands fa-python"></i> Python</a>
-										<a class="dropdown-item" value="c_cpp"><i class="fa-solid fa-c"></i> c/c++</a>
-									</div>
-								</div>
-
-							</div>
-							<div class="col-auto my-1">
-								<!-- <button>
-									<i class="fa-solid fa-gear"></i>
-									Settings
-								</button> -->
-								<button id="execute">
-									<i class="fa-solid fa-play"></i>
-									Run!
-								</button>
+						<div id="codelandKeyboardSelect" class="btn-group clodelandSettings">
+							<button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
+								<img src="/static/svg/sublime-text.svg" height="16px" /> Sublime
+							</button>
+							<div class="dropdown-menu">
+								<a class="dropdown-item active" value="sublime"><img src="/static/svg/sublime-text.svg" height="16px" /> Sublime</a>
+								<a class="dropdown-item" value="vscode"><img src="/static/svg/vscode.svg" height="16px" /> VS Code</a>
 							</div>
 						</div>
-					</div>
-				</span>
-				<i class="fa-solid fa-code"></i>
-				Editor
 
-			</div>
+						<div id="codelandLanguageSelect" class="btn-group clodelandSettings">
+							<button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
+								<i class="fa-solid fa-hashtag"></i> Bash
+							</button>
+							<div class="dropdown-menu">
+								<a class="dropdown-item active" value="sh"><i class="fa-solid fa-hashtag"></i> Bash</a>
+								<a class="dropdown-item" value="javascript"><i class="fa-brands fa-node-js"></i> JavaScript</a>
+								<a class="dropdown-item" value="python"><i class="fa-brands fa-python"></i> Python</a>
+								<a class="dropdown-item" value="c_cpp"><i class="fa-solid fa-c"></i> c/c++</a>
+							</div>
+						</div>
+
+		 			<button id="execute" class="btn btn-outline-success btn-sm clodelandSettings">
+						<i class="fa-solid fa-play"></i>
+						Run!
+					</button>
+				</div>
+				
+			</nav>
+
 			<div class="card-header actionMessage" style="display: none;"></div>
 			<div class="card-body" style="padding: 0">
-
 				<div id="editor"></div>
-
-
 			</div>
 		
 		</div>
 	</div>
 
-	<div id="codeland-col" class="col-md-6" style="height: 100%;">
+	<div class="codeland-col col-md-6" style="height: 100%;">
 		<div id="codeland-card" class="card shadow-lg">
-			<div class="card-header">
-				<i class="fa-solid fa-terminal"></i>
-				Results
-			</div>
+
+				<nav class="card-header navbar navbar-dark bg-dark">
+					<a class="navbar-brand">
+						<i class="fa-solid fa-terminal"></i>
+						Results
+					</a>
+					<div class="results-buttons d-inline">
+
+						<button class="disabled btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
+							<i class="fa-solid fa-circle-info"></i>
+							Information
+						</button>
+						<div class="dropdown-menu">
+							<ul class="list-group list-group-flush" jq-repeat="runInformation">
+								<li class="list-group-item py-1">
+									Runner: <b>{{runner}}</b>
+								</li>
+								<li class="list-group-item py-1">
+									Duration: <b>{{duration}}</b><i>ms</i>
+								</li>
+							</ul>
+						</div>
+
+			 			<button id="clear" class="disabled btn btn-outline-success btn-sm">
+							<i class="fa-solid fa-eraser"></i>
+							Clear
+						</button>
+
+					</div>
+					
+				</nav>
+
 			<div class="card-header actionMessage" style="display: none;"></div>
 			<div class="card-body" style="padding: 0">
-
 
 				<div id="codeland-results">
 				</div>

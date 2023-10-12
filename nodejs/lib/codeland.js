@@ -123,7 +123,11 @@ class CodeLandWorker{
 	}
 
 	__runnerSetStatus(runner, status, message){
-		if(runner instanceof LXC) runner.lastStatus = status;
+		if(runner instanceof LXC){
+			runner.lastStatus = status;
+			if(!runner.statusHistory) runner.statusHistory = [] 
+			runner.statusHistory.push({status, ...message})
+		}
 
 		this.__log(`runner:status:${status}`, {
 			runner: runner instanceof LXC ? runner.name : runner,
@@ -262,6 +266,7 @@ class CodeLandWorker{
 			this.__runnerSetStatus(name, 'oven:cooking');
 			this.runnersCooking++
 			runner = await this.runnerTemplate.startEphemeral(name);
+			runner.statusHistory = []
 
 
 			let tryCount = 0;
@@ -276,6 +281,7 @@ class CodeLandWorker{
 				if(runnerInfo.state !== "RUNNING") throw new Error('LXC failed to start')
 			}
 			this.__runnerSetStatus(runner, 'available',);
+
 
 			return runner;
 		}catch(error){
@@ -407,8 +413,6 @@ class CodeLandWorker{
 		const startTime = new Date();
 		try{
 			this.__runnerSetStatus(runner, 'execute');
-
-			console.log('crunner', runner.name)
 
 			let res = await axios.post(`http://${this.ssh.host}/`, {
 				code: code

@@ -13,7 +13,10 @@ router.get('/', async(req, res, next)=>{
       runners.push({
         name: name,
         lastStatus: runner.lastStatus || '__none__',
-        ...'detail' in req.query ? await runner.info() : undefined,
+        ...'detail' in req.query ? {
+          ...(await runner.info()),
+          statusHistory: runner.statusHistory
+        }: undefined,
       });
     }
   
@@ -63,7 +66,11 @@ router.get('/:runner', async (req, res, next)=>{
   let runner;
   try{
     runner = clworker.runnerGetByName(req.params.runner);
-    return res.json(await runner.info());
+    return res.json({
+      ...(await runner.info()),
+      lastStatus: runner.lastStatus,
+      statusHistory: runner.statusHistory,
+    });
   }catch(error){
     if(runner && !error.runner) error.runner = runner;
     next(error)

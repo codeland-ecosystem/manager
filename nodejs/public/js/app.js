@@ -65,7 +65,7 @@ app.socket = (function(app){
 app.api = (function(app){
 	var baseURL = '/api/v1/'
 
-	function post(url, data, callack){
+	function post(url, data, callback){
 		$.ajax({
 			type: 'POST',
 			url: baseURL+url,
@@ -76,7 +76,7 @@ app.api = (function(app){
 			contentType: "application/json; charset=utf-8",
 			dataType: "json",
 			complete: function(res, text){
-				callack(
+				callback(
 					text !== 'success' ? res.statusText : null,
 					JSON.parse(res.responseText),
 					res.status
@@ -85,7 +85,7 @@ app.api = (function(app){
 		});
 	}
 
-	function put(url, data, callack){
+	function put(url, data, callback){
 		$.ajax({
 			type: 'PUT',
 			url: baseURL+url,
@@ -96,7 +96,7 @@ app.api = (function(app){
 			contentType: "application/json; charset=utf-8",
 			dataType: "json",
 			complete: function(res, text){
-				callack(
+				callback(
 					text !== 'success' ? res.statusText : null,
 					JSON.parse(res.responseText),
 					res.status
@@ -105,8 +105,8 @@ app.api = (function(app){
 		});
 	}
 
-	function remove(url, callack, callack2){
-		if(!$.isFunction(callack)) callack = callack2;
+	function remove(url, callback, callback2){
+		if(!$.isFunction(callback)) callback = callback2;
 		$.ajax({
 			type: 'delete',
 			url: baseURL+url,
@@ -116,7 +116,7 @@ app.api = (function(app){
 			contentType: "application/json; charset=utf-8",
 			dataType: "json",
 			complete: function(res, text){
-				callack(
+				callback(
 					text !== 'success' ? res.statusText : null,
 					JSON.parse(res.responseText),
 					res.status
@@ -125,7 +125,7 @@ app.api = (function(app){
 		});
 	}
 
-	function get(url, callack){
+	function get(url, callback){
 		$.ajax({
 			type: 'GET',
 			url: baseURL+url,
@@ -135,7 +135,7 @@ app.api = (function(app){
 			contentType: "application/json; charset=utf-8",
 			dataType: "json",
 			complete: function(res, text){
-				callack(
+				callback(
 					text !== 'success' ? res.statusText : null,
 					JSON.parse(res.responseText),
 					res.status
@@ -157,38 +157,38 @@ app.auth = (function(app) {
 		return localStorage.getItem('APIToken');
 	}
 
-	function isLoggedIn(callack){
+	function isLoggedIn(callback){
 		if(getToken()){
 			return app.api.get('user/me', function(error, data){
 				if(!error) app.auth.user = data;
-				return callack(error, data);
+				return callback(error, data);
 			});
 		}else{
-			callack(null, false);
+			callback(null, false);
 		}
 	}
 
-	function logIn(args, callack){
+	function logIn(args, callback){
 		app.api.post('auth/login', args, function(error, data){
 			if(data.login){
 				setToken(data.token);
 			}
-			callack(error, !!data.token);
+			callback(error, !!data.token);
 		});
 	}
 
-	function logOut(callack){
+	function logOut(callback){
 		localStorage.removeItem('APIToken');
-		callack();
+		callback();
 	}
 
-	function makeUserFromInvite(args, callack){
+	function makeUserFromInvite(args, callback){
 		app.api.post('auth/invite/'+ args.token, args, function(error, data){
 			if(data.login){
-				callack(null, data);
+				callback(null, data);
 				setToken(data.token);
 			}
-			callack(error, !!data.token);
+			callback(error, !!data.token);
 		});
 	}
 
@@ -204,34 +204,34 @@ app.auth = (function(app) {
 })(app);
 
 app.user = (function(app){
-	function list(callack){
+	function list(callback){
 		app.api.get('user/?detail=true', function(error, data){
-			callack(error, data);
+			callback(error, data);
 		})
 	}
 
-	function add(args, callack){
+	function add(args, callback){
 		app.api.post('user/', args, function(error, data){
-			callack(error, data);
+			callback(error, data);
 		});
 	}
 
-	function remove(args, callack){
+	function remove(args, callback){
 		if(!confirm('Delete '+ args.uid+ 'user?')) return false;
 		app.api.delete('user/'+ args.uid, function(error, data){
-			callack(error, data);
+			callback(error, data);
 		});
 	}
 
-	function changePassword(args, callack){
+	function changePassword(args, callback){
 		app.api.put('users/'+ arg.uid || '', args, function(error, data){
-			callack(error, data);
+			callback(error, data);
 		});
 	}
 
-	function createInvite(callack){
+	function createInvite(callback){
 		app.api.post('user/invite', {}, function(error, data, status){
-			callack(error, data);	
+			callback(error, data);	
 		});
 	}
 
@@ -239,9 +239,9 @@ app.user = (function(app){
 		app.api.post('/auth/invite/'+args.token, args, function(error, data){
 			if(data.token){
 				app.auth.setToken(data.token)
-				return callack(null, true)
+				return callback(null, true)
 			}
-			callack(error)
+			callback(error)
 		});
 	}
 
@@ -250,15 +250,15 @@ app.user = (function(app){
 })(app);
 
 app.group = (function(app){
-	function list(callack){
+	function list(callback){
 		app.api.get('group?detail=true', function(error, data){
-			callack(error, data);
+			callback(error, data);
 		});
 	}
 
-	function remove(args, callack){
+	function remove(args, callback){
 		app.api.delete('group/'+args.cn, function(error, data){
-			callack(error, data);
+			callback(error, data);
 		});
 	}
 
@@ -266,18 +266,75 @@ app.group = (function(app){
 })(app)
 
 app.codeland = (function(app){
-	function once(code, callack){
+	var runner = {}
+	function setRunner(runnerName){
+		localStorage.setItem('lastRunner', runnerName);
+	}
 
+	function getRunner(){
+		return localStorage.getItem('lastRunner');
+	}
+
+
+	function once(code, callback){
 		app.api.post('runner/run', {code: code}, function(error, data){
-			if(error) return callack(error);
-			callack (null, {
+			if(error) return callback(error, data);
+			callback (null, {
 				...data,
 				res: atob(data.res),
 			})
 		});
 	}
 
-	return {once};
+	function getRunner(code, callback){
+		app.api.post('runner/new', {code: code}, function(error, data){
+			if(error) return callback(error, data);
+			callback (null, {
+				...data,
+				res: atob(data.res),
+			})
+		});
+	}
+
+	function call(code, runner, callback){
+		app.api.post(`runner/${runner}`, {code: code}, function(error, data){
+			if(error) return callback(error, data);
+			callback (null, {
+				...data,
+				res: atob(data.res),
+			})
+		});
+	}
+
+	function kill(runner, callback){
+		if($.isFunction(runner)){
+			callback = runner;
+			runner = getRunner();
+		}
+		app.api.delete(`runner/${runner}`, callback);
+	}	
+
+	function persistentRun(code, callback){
+		if(getRunner()){
+			call(code, getRunner(), callback)
+		}else{
+			getRunner(code, function(err, data){
+				if(err) return callback(error, data);
+				setRunner(data.runner)
+				callback(error, data);
+			})
+		}
+	} 
+
+	function info(runner, callback){
+		if($.isFunction(runner)){
+			callback = runner;
+			runner = getRunner();
+		}
+		app.api.get(`runner/${runner}`, callback);
+	}
+
+	return {once, getRunner, call, kill, persistentRun, info};
 
 })(app);
 
@@ -290,10 +347,11 @@ app.util = (function(app){
 	    return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
 	};
 
-	function actionMessage(message, $target, type){
+	function actionMessage(message, $target, type, callback){
 		message = message || '';
 		$target = $target.closest('div.card').find('.actionMessage');
 		type = type || 'info';
+		callback = callback || function(){};
 
 		if($target.html() === message) return;
 
@@ -303,13 +361,13 @@ app.util = (function(app){
 				$target.removeClass (function (index, className) {
 					return (className.match (/(^|\s)bg-\S+/g) || []).join(' ');
 				});
-				if(message) actionMessage(message, $target, type);
+				if(message) actionMessage(message, $target, type, callback);
 			})
-			return;
 		}else{
 			if(type) $target.addClass('bg-' + type);
 			$target.html(message).slideDown('fast');
 		}
+		setTimeout(callback,10)
 	}
 
 	$.fn.serializeObject = function() {
