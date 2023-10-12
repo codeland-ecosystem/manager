@@ -54,7 +54,7 @@
 
 <script type="text/javascript">
 	const interpreters = {
-	    'sh': 'echo "${}" | base64 --decode | bash',
+	    'sh': 'export TERM=xterm-256color; echo "${}" | base64 --decode | bash',
 	    'python': 'echo "${}" | base64 --decode | python3',
 	    'javascript': 'echo "${}" | base64 --decode | node',
 	    'c_ccp': 'echo "${}" | base64 --decode | gcc -xc -o run1 - && ./run1',
@@ -263,11 +263,7 @@
 			<div class="card-header actionMessage" style="display: none;"></div>
 			<div class="card-body" style="padding: 0">
 
-				<div id="editor">export TERM=xterm-256color;
-
-sudo apt install -y neofetch
-
-neofetch</div>
+				<div id="editor"></div>
 
 
 			</div>
