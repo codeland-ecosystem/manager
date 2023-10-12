@@ -1,44 +1,26 @@
 <%- include('top') %>
+
+<!-- <script src="/static/lib/js/hterm_all.js"></script> -->
+<script src="/static-modules/ace-builds/src-noconflict/ace.js"></script>
+
+<link rel="stylesheet" href="static-modules/xterm/css/xterm.css" />
+<script src="static-modules/xterm/lib/xterm.js"></script>
+<script src="static-modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+<script src="static-modules/xterm-addon-attach/lib/xterm-addon-attach.js"></script>
+
 <style type="text/css">
-	div.card-body.jq-repeat-workerInfomation > ul > li.list-group-item{
-		padding: 2px;
-	}
-
-	.w3_tooltip {
-	  position: relative;
-	  display: inline-block;
-/*	  border-bottom: 1px dotted black;*/
-	}
-
-	.w3_tooltip .w3_tooltiptext {
-	  visibility: hidden;
-	  width: 14em;
-	  background-color: black;
-	  color: #fff;
-	  text-align: center;
-	  border-radius: 6px;
-	  padding: 5px;
-
-	  /* Position the w3_tooltip */
-	  position: absolute;
-	  z-index: 100;
-	}
-
-	.w3_tooltip:hover .w3_tooltiptext {
-	  visibility: visible;
-	}
-
 
 	dev.card-body {
 		padding: 0 !important;
 	}
 
 	#codeland-col {
-		padding-bottom: 2em;
+/*		padding-bottom: 1em;*/
 	}
 
 	#codeland-card {
 		height: 100%;
+
 	}
 
 	#editor {
@@ -48,137 +30,267 @@
 	    top: 50px;
 	    top: 0;
 	    left: 0;
-	    width: 50%;
-	    display: inline-block;
+/*	    width: 50%;
+	    display: inline-block;*/
 	}
 
 	#codeland-results {
 		background-color: darkgrey;
 		height: 100%;
-	    margin: 0;
-	    top: 50px;
+	    margin-bottom: 0;
+/*	    top: 50px;
 	    top: 0;
-	    right: 0;
-	    width: 50%;
+	    right: 0;*/
+/*	    width: 50%;
 	    float: right;
-	    display: inline-block;
-	    overflow: scroll;
+	    display: inline-block;*/
+/*	    overflow: scroll;*/*/
 	}
 
 
 
 
 </style>
-<script src="/static/lib/js/hterm_all.js"></script>
-<script src="/static-modules/ace-builds/src-min/ace.js"></script>
-<link rel="stylesheet" href="static-modules/xterm/css/xterm.css" />
-<script src="static-modules/xterm/lib/xterm.js"></script>
+
 <script type="text/javascript">
 	const interpreters = {
-	    'bash': 'echo "${}" | base64 --decode | bash',
+	    'sh': 'echo "${}" | base64 --decode | bash',
 	    'python': 'echo "${}" | base64 --decode | python3',
 	    'javascript': 'echo "${}" | base64 --decode | node',
-	    'c': 'echo "${}" | base64 --decode | gcc -xc -o run1 - && ./run1',
+	    'c_ccp': 'echo "${}" | base64 --decode | gcc -xc -o run1 - && ./run1',
 	}
 
 	function parseCode(code, language){
 		return interpreters[language].replace('${}', btoa(code))
 	}
 
+	var editor;
+	var currentLanguage;
+
 	$(document).ready(function(){
 
-		$runButton = $('#clodelandRun');
-		$spinner = $('#workerStatus');
-		$results = $('#codeland-results')
-
-		$runButton.on('click', function(){
-			$runButton.hide()
-			$spinner.show()
-			app.api.post('runner/run', {code: parseCode(editor.getValue(),'javascript')}, function(err, data){
-				$runButton.show()
-				$spinner.hide()
-				$results.text(atob(data.res))
-			})
-		})
-
-
 		editor = ace.edit($('#editor')[0]);
+		// ace.require('ace/ext/settings_menu').init(editor);
+		ace.require("ace/ext/language_tools");
 		// editor.$blockScrolling = Infinity;
 		editor.setFontSize(16);
 		editor.setTheme("ace/theme/monokai");
-		editor.getSession().setMode("ace/mode/javascript");
+		editor.getSession().setMode("ace/mode/sh");
+		editor.setKeyboardHandler("ace/keyboard/sublime");
+
 		editor.setShowInvisibles(true);
 
-// 		var term = new Terminal();
-// 		term.open(document.getElementById('codeland-results'));
-// 		term.write(atob(`G1s/MjVsG1s/N2wbWzBtG1szMW0bWzFtICAgICAgICAgICAgLi0vK29vc3Nzc29vKy8tLgogICAg`))
-// term.write(atob(`ICAgIGA6K3Nzc3Nzc3Nzc3Nzc3Nzc3Nzcys6YAogICAgICAtK3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3l5`))
-// term.write(atob(`c3NzcystCiAgICAub3Nzc3Nzc3Nzc3Nzc3Nzc3NzcxtbMzdtG1swbRtbMW1kTU1NTnkbWzBtG1sz`))
-// term.write(atob(`MW0bWzFtc3Nzc28uCiAgIC9zc3Nzc3Nzc3NzcxtbMzdtG1swbRtbMW1oZG1tTk5tbXlOTU1NTWgb`))
-// term.write(atob(`WzBtG1szMW0bWzFtc3Nzc3NzLwogICtzc3Nzc3Nzc3MbWzM3bRtbMG0bWzFtaG0bWzBtG1szMW0b`))
-// term.write(atob(`WzFteWQbWzM3bRtbMG0bWzFtTU1NTU1NTU5kZGRkeRtbMG0bWzMxbRtbMW1zc3Nzc3NzcysKIC9z`))
-// term.write(atob(`c3Nzc3NzcxtbMzdtG1swbRtbMW1oTk1NTRtbMG0bWzMxbRtbMW15aBtbMzdtG1swbRtbMW1oeXl5`))
-// term.write(atob(`eWhtTk1NTU5oG1swbRtbMzFtG1sxbXNzc3Nzc3NzLwouc3Nzc3Nzc3MbWzM3bRtbMG0bWzFtZE1N`))
-// // TU5oG1swbRtbMzFtG1sxbXNzc3Nzc3Nzc3MbWzM3bRtbMG0bWzFtaE5NTU1kG1swbRtbMzFtG1sx
-// // bXNzc3Nzc3NzLgorc3NzcxtbMzdtG1swbRtbMW1oaGh5Tk1NTnkbWzBtG1szMW0bWzFtc3Nzc3Nz
-// // c3Nzc3NzG1szN20bWzBtG1sxbXlOTU1NeRtbMG0bWzMxbRtbMW1zc3Nzc3NzKwpvc3MbWzM3bRtb
-// // MG0bWzFteU5NTU1OeU1NaBtbMG0bWzMxbRtbMW1zc3Nzc3Nzc3Nzc3NzcxtbMzdtG1swbRtbMW1o
-// // bW1taBtbMG0bWzMxbRtbMW1zc3Nzc3Nzbwpvc3MbWzM3bRtbMG0bWzFteU5NTU1OeU1NaBtbMG0b
-// // WzMxbRtbMW1zc3Nzc3Nzc3Nzc3Nzc2htbW1oG1swbRtbMzFtG1sxbXNzc3Nzc3NvCitzc3NzG1sz
-// // N20bWzBtG1sxbWhoaHlOTU1OeRtbMG0bWzMxbRtbMW1zc3Nzc3Nzc3Nzc3MbWzM3bRtbMG0bWzFt
-// // eU5NTU15G1swbRtbMzFtG1sxbXNzc3Nzc3MrCi5zc3Nzc3NzcxtbMzdtG1swbRtbMW1kTU1NTmgb
-// // WzBtG1szMW0bWzFtc3Nzc3Nzc3NzcxtbMzdtG1swbRtbMW1oTk1NTWQbWzBtG1szMW0bWzFtc3Nz
-// // c3Nzc3MuCiAvc3Nzc3Nzc3MbWzM3bRtbMG0bWzFtaE5NTU0bWzBtG1szMW0bWzFteWgbWzM3bRtb
-// // MG0bWzFtaHl5eXloZE5NTU1OaBtbMG0bWzMxbRtbMW1zc3Nzc3Nzcy8KICArc3Nzc3Nzc3NzG1sz
-// // N20bWzBtG1sxbWRtG1swbRtbMzFtG1sxbXlkG1szN20bWzBtG1sxbU1NTU1NTU1NZGRkZHkbWzBt
-// // G1szMW0bWzFtc3Nzc3Nzc3MrCiAgIC9zc3Nzc3Nzc3NzcxtbMzdtG1swbRtbMW1oZG1OTk5ObXlO
-// // TU1NTWgbWzBtG1szMW0bWzFtc3Nzc3NzLwogICAgLm9zc3Nzc3Nzc3Nzc3Nzc3Nzc3MbWzM3bRtb
-// // MG0bWzFtZE1NTU55G1swbRtbMzFtG1sxbXNzc3NvLgogICAgICAtK3Nzc3Nzc3Nzc3Nzc3Nzc3Nz
-// // G1szN20bWzBtG1sxbXl5eRtbMG0bWzMxbRtbMW1zc3NzKy0KICAgICAgICBgOitzc3Nzc3Nzc3Nz
-// // c3Nzc3Nzc3MrOmAKICAgICAgICAgICAgLi0vK29vc3Nzc29vKy8tLhtbMG0KG1syMEEbWzk5OTk5
-// // OTlEG1s0M0MbWzBtG1sxbRtbMzFtG1sxbXJvb3QbWzBtQBtbMzFtG1sxbWNydW5uZXIwLXByb2R1
-// // Y3Rpb24tNTgxOTIbWzBtIAobWzQzQxtbMG0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0b
-// // WzBtIAobWzQzQxtbMG0bWzMxbRtbMW1PUxtbMG0bWzBtOhtbMG0gVWJ1bnR1IDIwLjA0LjYgTFRT
-// // IHg4Nl82NBtbMG0gChtbNDNDG1swbRtbMzFtG1sxbUhvc3QbWzBtG1swbTobWzBtIEtWTS9RRU1V
-// // IChTdGFuZGFyZCBQQyAoaTQ0MEZYICsgUElJWCwgMTk5NikgcGMtaTQ0MGZ4LTcuMikbWzBtIAob
-// // WzQzQxtbMG0bWzMxbRtbMW1LZXJuZWwbWzBtG1swbTobWzBtIDYuMS4wLTEyLWFtZDY0G1swbSAK
-// // G1s0M0MbWzBtG1szMW0bWzFtVXB0aW1lG1swbRtbMG06G1swbSAyIGRheXMsIDIxIGhvdXJzLCA1
-// // OSBtaW5zG1swbSAKG1s0M0MbWzBtG1szMW0bWzFtUGFja2FnZXMbWzBtG1swbTobWzBtIDM0NyAo
-// // ZHBrZykbWzBtIAobWzQzQxtbMG0bWzMxbRtbMW1TaGVsbBtbMG0bWzBtOhtbMG0gc2gbWzBtIAob
-// // WzQzQxtbMG0bWzMxbRtbMW1UZXJtaW5hbBtbMG0bWzBtOhtbMG0gY3J1bm5lchtbMG0gChtbNDND
-// // G1swbRtbMzFtG1sxbUNQVRtbMG0bWzBtOhtbMG0gSW50ZWwgWGVvbiBFNS0yNjg5IDAgKDQpIEAg
-// // Mi41OTNHSHobWzBtIAobWzQzQxtbMG0bWzMxbRtbMW1NZW1vcnkbWzBtG1swbTobWzBtIDM4TWlC
-// // IC8gODQ5NE1pQhtbMG0gCgobWzQzQxtbMzBtG1s0MG0gICAbWzMxbRtbNDFtICAgG1szMm0bWzQy
-// // bSAgIBtbMzNtG1s0M20gICAbWzM0bRtbNDRtICAgG1szNW0bWzQ1bSAgIBtbMzZtG1s0Nm0gICAb
-// // WzM3bRtbNDdtICAgG1swbQoKCgoKCgoKChtbPzI1aBtbPzdo`))
+		// editor.setOptions({
+		//     enableBasicAutocompletion: true,
+		//     enableSnippets: true,
+		//     enableLiveAutocompletion: true
+		// });
+
+		// editor.commands.addCommands([
+		//     {
+		//         name: "showSettingsMenu",
+		//         bindKey: {
+		//             win: "Ctrl-q",
+		//             mac: "Ctrl-q"
+		//         },
+		//         exec: function (editor) {
+		//             editor.showSettingsMenu();
+		//         },
+		//         readOnly: true
+		//     }
+		// ]);
+
+
+		term = new Terminal();
+		const fitAddon = new FitAddon.FitAddon()
+		term.loadAddon( fitAddon );
+		term.open(document.getElementById('codeland-results'));
+		fitAddon.fit()
+
+		$(window).resize(function(){
+		  fitAddon.fit()
+		});
+
+		$runForm = $('#clodelandRun');
+		$spinner = $('#workerStatus');
+		$results = $('#codeland-results');
+		$codelandKeyboardSelect = $('#codelandKeyboardSelect');
+		$codelandLanguageSelect = $('#codelandLanguageSelect');
+
+		function updateDropDown(value, $elelemt){
+			let text;
+			$elelemt.find('a.dropdown-item').each(function(index){
+				let $this = $(this)
+				if($this.attr('value') === value){
+					$this.addClass('active');
+					text = $this.html()
+				}else{
+					$this.removeClass('active')
+				}
+			});
+
+			$($elelemt.find('button.dropdown-toggle')[0]).html(text)
+
+			return !!text;
+		}
+
+		function updateURL(key, value){
+			let hash = new URLSearchParams(window.location.hash.replace(/^\#/, ''));
+			hash.set(key, value);
+
+			window.location.hash = hash.toString();
+		}
+
+		const urlMap = {
+			language: updateLanguage,
+			keyboard: updateKeybpard,
+		};
+
+		function parseHash(){
+			for (const [key, value] of new URLSearchParams(window.location.hash.replace(/^\#/, ''))) {
+				if(urlMap[key]) urlMap[key](value, false)
+			}
+		}
+
+		parseHash();
+
+		function updateKeybpard(keyboard, appendURL=true){
+			if(updateDropDown(keyboard, $codelandKeyboardSelect)){
+			console.log('here')
+				editor.setKeyboardHandler(`ace/keyboard/${keyboard}`);
+				if(appendURL) updateURL('keyboard', keyboard);
+			}
+		}
+
+		function updateLanguage(language, appendURL=true){
+			if(updateDropDown(language, $codelandLanguageSelect)){
+				editor.getSession().setMode(`ace/mode/${language}`);
+				currentLanguage = language;
+				if(appendURL) updateURL('language', language);
+			}
+		}
+
+		$runForm.find('#execute').on('click', function(){
+			$runForm.hide()
+			$spinner.show()
+
+			app.codeland.once(parseCode(editor.getValue(), currentLanguage), (err, data)=>{
+				if(err){
+					alert("ERROR!")
+					console.log('err', err)
+				}
+
+				$runForm.show()
+				$spinner.hide()
+				term.clear()
+
+				for(let line of data.res.split('\n')){
+					term.writeln(line)
+				}
+
+			})
+		});
+
+		$codelandKeyboardSelect.on('click', 'a.dropdown-item', function(event){
+			updateLanguage($(this).attr('value'))
+		});
+
+		$codelandLanguageSelect.on('click', 'a.dropdown-item', function(event){
+			let value = $(this).attr('value');
+
+			if(updateDropDown(value, $codelandLanguageSelect)){
+				editor.getSession().setMode(`ace/mode/${value}`);
+				updateURL('language', value);
+			}
+		});
 
 	});
 </script>
-
-	<div id="codeland-col" class="col-md-12" style="height: 100%;">
+<div class="row" style="height: 100%">
+	<div id="codeland-col" class="col-md-6" style="height: 100%;">
 		<div id="codeland-card" class="card shadow-lg">
 			<div class="card-header">
 				<span class="float-right">
 					
 					<div id="workerStatus" class="spinner-grow spinner-grow-sm text-success" role="status" style="display:none">
-					  <span class="sr-only">Loading...</span>
+						<span class="sr-only">Loading...</span>
 					</div>
-					<button id="clodelandRun">Run!</button>
+					<div id="clodelandRun">
+						<div class="form-row align-items-center">
+							<div class="col-auto my-1">
+
+								<div id="codelandKeyboardSelect" class="btn-group">
+									<button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
+										<img src="/static/svg/sublime-text.svg" height="16px" /> Sublime
+									</button>
+									<div class="dropdown-menu">
+										<a class="dropdown-item active" value="sublime"><img src="/static/svg/sublime-text.svg" height="16px" /> Sublime</a>
+										<a class="dropdown-item" value="vscode"><img src="/static/svg/vscode.svg" height="16px" /> VS Code</a>
+									</div>
+								</div>
+
+
+								<div id="codelandLanguageSelect" class="btn-group">
+									<button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
+										<i class="fa-solid fa-hashtag"></i> Bash
+									</button>
+									<div class="dropdown-menu">
+										<a class="dropdown-item active" value="sh"><i class="fa-solid fa-hashtag"></i> Bash</a>
+										<a class="dropdown-item" value="javascript"><i class="fa-brands fa-node-js"></i> JavaScript</a>
+										<a class="dropdown-item" value="python"><i class="fa-brands fa-python"></i> Python</a>
+										<a class="dropdown-item" value="c_cpp"><i class="fa-solid fa-c"></i> c/c++</a>
+									</div>
+								</div>
+
+							</div>
+							<div class="col-auto my-1">
+								<!-- <button>
+									<i class="fa-solid fa-gear"></i>
+									Settings
+								</button> -->
+								<button id="execute">
+									<i class="fa-solid fa-play"></i>
+									Run!
+								</button>
+							</div>
+						</div>
+					</div>
 				</span>
-				<i class="fas fa-layer-plus"></i>
-				Worker Information
+				<i class="fa-solid fa-code"></i>
+				Editor
 
 			</div>
 			<div class="card-header actionMessage" style="display: none;"></div>
 			<div class="card-body" style="padding: 0">
 
-				<div id="editor"></div>
-				<pre id="codeland-results">
-				</pre>
+				<div id="editor">export TERM=xterm-256color;
+
+sudo apt install -y neofetch
+
+neofetch</div>
+
 
 			</div>
 		
 		</div>
 	</div>
 
+	<div id="codeland-col" class="col-md-6" style="height: 100%;">
+		<div id="codeland-card" class="card shadow-lg">
+			<div class="card-header">
+				<i class="fa-solid fa-terminal"></i>
+				Results
+			</div>
+			<div class="card-header actionMessage" style="display: none;"></div>
+			<div class="card-body" style="padding: 0">
+
+
+				<div id="codeland-results">
+				</div>
+
+			</div>
+		
+		</div>
+	</div>
+</div>
 <%- include('bottom') %>

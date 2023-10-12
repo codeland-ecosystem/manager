@@ -7,6 +7,11 @@ const express = require('express');
 // Set up the express app.
 const app = express();
 
+// List of front end node modules to be served
+const frontEndModules = ['bootstrap', 'mustache', 'jquery', '@fortawesome',
+  'moment', 'ace-builds', 'xterm', 'xterm-addon-fit', 'xterm-addon-attach',
+];
+
 // Hold list of functions to run when the server is ready
 app.onListen = [function(){console.log('hello')}];
 
@@ -19,8 +24,6 @@ app.conf = require('./conf');
 // Grab the projects PubSub
 app.ps = require('./controller/pubsub.js'); 
 
-let socketCount = 0;
-
 // Push pubsub over the socket and back.
 app.onListen.push(function(){
   app.ps.subscribe(/./g, function(data, topic){
@@ -28,7 +31,6 @@ app.onListen.push(function(){
   });                                 
 
   app.io.on('connection', (socket) => {
-    console.log('socket?', socketCount++);
     socket.on('P2PSub', (msg) => {
       app.ps.publish(msg.topic, msg.data);
       socket.broadcast.emit('P2PSub', msg);
@@ -52,16 +54,17 @@ app.set('view engine', 'ejs');
 // local folder.
 app.use('/static', express.static(path.join(__dirname, 'public')))
 
+// Server front end modules
+// https://stackoverflow.com/a/55700773/3140931
+frontEndModules.forEach(dep => {
+  app.use(`/static-modules/${dep}`, express.static(path.join(__dirname, `node_modules/${dep}`)))
+});
+
 // Routes for front end content.
 app.use('/', require('./routes/render'));
 
 // API route
 app.use('/api/v1', require('./routes/api_v1'));
-
-const nm_dependencies = ['ace-builds', 'xterm']; // keep adding required node_modules to this array.
-nm_dependencies.forEach(dep => {
-  app.use(`/static-modules/${dep}`, express.static(path.resolve(`node_modules/${dep}`)));
-});
 
 // Catch 404 and forward to error handler. If none of the above routes are
 // used, this is what will be called.

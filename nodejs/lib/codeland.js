@@ -408,6 +408,7 @@ class CodeLandWorker{
 		try{
 			this.__runnerSetStatus(runner, 'execute');
 
+			console.log('crunner', runner.name)
 
 			let res = await axios.post(`http://${this.ssh.host}/`, {
 				code: code
@@ -429,7 +430,11 @@ class CodeLandWorker{
 
 		}catch(error){
 			if(error.code === 'ECONNABORTED'){
-				 error = this.errors.runnerTimedOut(time, runner);
+				error = this.errors.runnerTimedOut(time, runner);
+			}
+			if(error.code === 'ERR_BAD_RESPONSE'){
+				error = new Error('RunnerGatewayTimeout')
+				error.status = 502
 			}
 
 			this.__runnerSetStatus(runner, 'error', {error});

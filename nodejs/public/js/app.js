@@ -267,11 +267,13 @@ app.group = (function(app){
 
 app.codeland = (function(app){
 	function once(code, callack){
-		app.api.post('runner/run', {code: code}, function(err, res){
-			return {
-				res: btoa(res.res),
-				...res
-			}
+
+		app.api.post('runner/run', {code: code}, function(error, data){
+			if(error) return callack(error);
+			callack (null, {
+				...data,
+				res: atob(data.res),
+			})
 		});
 	}
 

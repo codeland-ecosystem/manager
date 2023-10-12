@@ -3,20 +3,21 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-		<title>Codeland Manager <%= title %></title>
+		<title>Codeland Manager <%- title %></title>
 		<!-- CSS are placed here -->
-		<link rel="stylesheet" href="/static/lib/css/bootstrap-4.4.1.min.css">
+		<link rel="stylesheet" href="/static-modules/bootstrap/dist/css/bootstrap.min.css">
+		<link rel="stylesheet" href="/static-modules/@fortawesome/fontawesome-free/css/all.min.css">
+
 		<link rel='stylesheet' href='/static/css/styles.css' />
 		<!-- Scripts are placed here -->
 		<script type="text/javascript" src="/socket.io/socket.io.js"></script>
-		<script type="text/javascript" src='/static/lib/js/jquery-3.5.0.min.js'></script>
+		<script type="text/javascript" src='/static-modules/jquery/dist/jquery.js'></script>
 		<script type="text/javascript" src="/static/lib/js/popper-1.16.0.min.js"></script>
-		<script type="text/javascript" src="/static/lib/js/bootstrap-4.4.1.min.js"></script>
-		<script type="text/javascript" src="/static/lib/js/all.min.js"></script>
-		<script type="text/javascript" src='/static/lib/js/mustache.min.js'></script>
+		<script type="text/javascript" src="/static-modules/bootstrap/dist/js/bootstrap.min.js"></script>
+		<script type="text/javascript" src="/static-modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+		<script type="text/javascript" src='/static-modules/mustache/mustache.min.js'></script>
 		<script type="text/javascript" src='/static/lib/js/jq-repeat_new.js'></script>
-		<script type="text/javascript" src="/static/lib/js/val.js"></script>
-		<script type="text/javascript" src="/static/lib/js/moment.js"></script>
+		<script type="text/javascript" src="/static-modules/moment/dist/moment.js"></script>
 		<script type="text/javascript" src="/static/js/app.js"></script>
 
 
@@ -29,7 +30,7 @@
 	<body>
 
 		<nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
-		  <a class="navbar-brand" href="#">Codeland Manager <%= title %></a>
+		  <a class="navbar-brand" href="#">Codeland Manager <%- title %></a>
 		  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
 		    <span class="navbar-toggler-icon"></span>
 		  </button>

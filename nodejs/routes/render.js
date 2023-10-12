@@ -4,7 +4,7 @@ var router = require('express').Router();
 const conf = require('../conf')
 
 const values ={
-  title: conf.environment !== 'production' ? ` -- ${conf.environment}` : ''
+  title: conf.environment !== 'production' ? `<i class="fa-brands fa-dev"></i>` : ''
 }
 
 /* GET home page. */
