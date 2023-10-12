@@ -54,7 +54,7 @@
 
 <script type="text/javascript">
 	const interpreters = {
-	    'sh': 'export TERM=xterm-256color; echo "${}" | base64 --decode | bash',
+	    'sh': 'echo "${}" | base64 --decode | bash',
 	    'python': 'echo "${}" | base64 --decode | python3',
 	    'javascript': 'echo "${}" | base64 --decode | node',
 	    'c_ccp': 'echo "${}" | base64 --decode | gcc -xc -o run1 - && ./run1',
@@ -174,7 +174,7 @@
 			$runForm.hide()
 			$spinner.show()
 
-			app.codeland.once(parseCode(editor.getValue(), currentLanguage), (err, data)=>{
+			app.codeland.once(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
 				if(err){
 					alert("ERROR!")
 					console.log('err', err)
@@ -192,16 +192,11 @@
 		});
 
 		$codelandKeyboardSelect.on('click', 'a.dropdown-item', function(event){
-			updateLanguage($(this).attr('value'))
+			updateKeybpard($(this).attr('value'))
 		});
 
 		$codelandLanguageSelect.on('click', 'a.dropdown-item', function(event){
-			let value = $(this).attr('value');
-
-			if(updateDropDown(value, $codelandLanguageSelect)){
-				editor.getSession().setMode(`ace/mode/${value}`);
-				updateURL('language', value);
-			}
+			updateLanguage($(this).attr('value'))
 		});
 
 	});
