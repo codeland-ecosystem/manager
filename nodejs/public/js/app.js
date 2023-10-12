@@ -374,10 +374,10 @@ function formAJAX( btn, del ) {
 	var formData = $form.find( '[name]' ).serializeObject(); // builds query formDataing
 	var method = $form.attr('method') || 'post';
 
-	if( !$form.validate()) {
-		app.util.actionMessage('Please fix the form errors.', $form, 'danger')
-		return false;
-	}
+	// if( !$form.validate()) {
+	// 	app.util.actionMessage('Please fix the form errors.', $form, 'danger')
+	// 	return false;
+	// }
 	
 	app.util.actionMessage( 
 		'<div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>',
