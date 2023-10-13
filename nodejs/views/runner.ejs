@@ -1,4 +1,8 @@
 <%- include('top') %>
+<!-- <script type="text/javascript">
+	// Require login to see this page.
+	app.auth.forceLogin()
+</script> -->
 
 <!-- <script src="/static/lib/js/hterm_all.js"></script> -->
 <script src="/static-modules/ace-builds/src-noconflict/ace.js"></script>
@@ -9,6 +13,12 @@
 <script src="static-modules/xterm-addon-attach/lib/xterm-addon-attach.js"></script>
 
 <style type="text/css">
+
+	.actionMessage{
+		position: absolute;
+		z-index: 10000000;
+		width: 100%;
+	}
 
 	dev.card-body {
 		padding: 0 !important;
@@ -186,12 +196,20 @@
 		})
 
 		$('#execute').on('click', function(){
+			term.clear()
+			$('.results-buttons').find('button').each(function(){
+				$(this).addClass('disabled')
+			})
 			$editorSettings.hide()
 			$spinner.show()
-			app.util.actionMessage(`Executing...`, $('#codeland-results'), 'warning')
-			fitAddon.fit()
+			app.util.actionMessage(`
+				Executing...
+				<div class="spinner-border float-right" role="status">
+					<span class="sr-only">Loading...</span>
+				</div>
+			`, $('#codeland-results'), 'warning')
 			
-			app.codeland.once(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
+			app.codeland.persistentRun(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
 				$editorSettings.show()
 				$spinner.hide()
 				
@@ -199,11 +217,9 @@
 					console.log(err, data)
 					let message = (data && data.message) || err.message || err;
 					app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
-					fitAddon.fit()
 					return;
 				}
 				app.util.actionMessage('', $('#codeland-results'))
-				term.clear()
 
 				for(let line of data.res.split('\n')){
 					term.writeln(line)
@@ -227,7 +243,7 @@
 
 	});
 </script>
-<div class="row" style="height: 100%">
+<div class="row" style="height: 100%; display: none;">
 	<div class="codeland-col col-md-6" style="height: 100%;">
 		<div id="codeland-card" class="card shadow-lg">
 			<nav class="card-header navbar navbar-dark bg-dark">
@@ -257,10 +273,10 @@
 
 						<div id="codelandLanguageSelect" class="btn-group clodelandSettings">
 							<button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
-								<i class="fa-solid fa-hashtag"></i> Bash
+								<img src="/static/svg/bash.svg" height="16px" /></i> Bash
 							</button>
 							<div class="dropdown-menu">
-								<a class="dropdown-item active" value="sh"><i class="fa-solid fa-hashtag"></i> Bash</a>
+								<a class="dropdown-item active" value="sh"><img src="/static/svg/bash.svg" height="16px" /></i> Bash</a>
 								<a class="dropdown-item" value="javascript"><i class="fa-brands fa-node-js"></i> JavaScript</a>
 								<a class="dropdown-item" value="python"><i class="fa-brands fa-python"></i> Python</a>
 								<a class="dropdown-item" value="c_cpp"><i class="fa-solid fa-c"></i> c/c++</a>
@@ -317,8 +333,8 @@
 					
 				</nav>
 
-			<div class="card-header actionMessage" style="display: none;"></div>
 			<div class="card-body" style="padding: 0">
+			<div class="card-header actionMessage" style="display: none;"></div>
 
 				<div id="codeland-results">
 				</div>

@@ -192,6 +192,22 @@ app.auth = (function(app) {
 		});
 	}
 
+	function forceLogin(){
+		$.holdReady( true );
+		app.auth.isLoggedIn(function(error, isLoggedIn){
+			if(error || !isLoggedIn){
+				app.auth.logOut(function(){})
+				location.replace(`/login${location.href.replace(location.origin, '')}`);
+			}else{
+				$.holdReady( false );
+			}
+		});
+	}
+
+	function logInRedirect(){
+		window.location.href = location.href.replace(location.origin+'/login', '') || '/'
+	}
+
 	return {
 		getToken: getToken,
 		setToken: setToken,
@@ -199,6 +215,8 @@ app.auth = (function(app) {
 		logIn: logIn,
 		logOut: logOut,
 		makeUserFromInvite: makeUserFromInvite,
+		forceLogin,
+		logInRedirect,
 	}
 
 })(app);
@@ -286,10 +304,10 @@ app.codeland = (function(app){
 		});
 	}
 
-	function getRunner(code, callback){
+	function newRunner(code, callback){
 		app.api.post('runner/new', {code: code}, function(error, data){
 			if(error) return callback(error, data);
-			callback (null, {
+			callback(null, {
 				...data,
 				res: atob(data.res),
 			})
@@ -311,18 +329,24 @@ app.codeland = (function(app){
 			callback = runner;
 			runner = getRunner();
 		}
+
 		app.api.delete(`runner/${runner}`, callback);
 	}	
 
 	function persistentRun(code, callback){
 		if(getRunner()){
-			call(code, getRunner(), callback)
-		}else{
-			getRunner(code, function(err, data){
-				if(err) return callback(error, data);
-				setRunner(data.runner)
-				callback(error, data);
+			call(code, getRunner(), function(err, data){
+				if(err && data.name === 'runnerNotFound'){
+					setRunner('')
+				}
+				callback(err, data);
 			})
+		}else{
+			newRunner(code, function(err, data){
+				if(err) return callback(err, data);
+				setRunner(data.runner)
+				callback(err, data);
+			});
 		}
 	} 
 
@@ -334,9 +358,17 @@ app.codeland = (function(app){
 		app.api.get(`runner/${runner}`, callback);
 	}
 
-	return {once, getRunner, call, kill, persistentRun, info};
+	return {once, getRunner, call, kill, persistentRun, info, setRunner, newRunner};
 
 })(app);
+
+app.codeland.worker = (function(app){
+	function killZombies(callback){
+		app.api.delete('worker/zombies', callback);
+	} 
+
+	return {killZombies}
+})(app)
 
 app.util = (function(app){
 
@@ -361,10 +393,12 @@ app.util = (function(app){
 				$target.removeClass (function (index, className) {
 					return (className.match (/(^|\s)bg-\S+/g) || []).join(' ');
 				});
-				if(message) actionMessage(message, $target, type, callback);
+				if(message) return actionMessage(message, $target, type, callback);
+				$target.hide()
 			})
 		}else{
 			if(type) $target.addClass('bg-' + type);
+			message = '<button class="action-close btn btn-sm btn-outline-dark float-right"><i class="fa-solid fa-xmark"></i></button>'+message
 			$target.html(message).slideDown('fast');
 		}
 		setTimeout(callback,10)
@@ -394,20 +428,6 @@ app.util = (function(app){
 	}
 })(app);
 
-$.holdReady( true );
-if(!location.pathname.includes('/login')){
-	app.auth.isLoggedIn(function(error, isLoggedIn){
-		if(error || !isLoggedIn){
-			app.auth.logOut(function(){})
-			location.replace('/login/?redirect='+location.pathname);
-		}else{
-			$.holdReady( false );
-		}
-	})
-}else{
-	$.holdReady( false );
-}
-
 $( document ).ready( function () {
 
 	$( 'div.row' ).fadeIn( 'slow' ); //show the page
@@ -417,12 +437,10 @@ $( document ).ready( function () {
 		$( this ).closest( '.card' ).find( '.card-body' ).slideToggle( 'fast' );
 	});
 
+	$('.actionMessage').on('click', 'button.action-close', function(event){
+		app.util.actionMessage(null, $(this));
+	})
 
-	$( '.glyphicon-refresh' ).each( function () {
-		$(this).click( function () {
-			tableAJAX();
-		});
-	});
 });
 
 //ajax form submit

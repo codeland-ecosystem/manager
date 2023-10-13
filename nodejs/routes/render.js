@@ -22,7 +22,7 @@ router.get('/chat', function(req, res, next) {
   res.render('chat', {...values});
 });
 
-router.get('/login', function(req, res, next) {
+router.get('/login*', function(req, res, next) {
   res.render('login', {redirect: req.query.redirect, ...values});
 });
 
