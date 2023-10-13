@@ -1,5 +1,6 @@
 <%- include('top') %>
 <script type="text/javascript">
+	// Require login to see this page.
 	app.auth.forceLogin()
 </script>
 
@@ -193,7 +194,7 @@
 		});
 
 		app.subscribe('cl:worker:runner:status:free:success', function(data, topic){
-			console.log('free', topic)
+			// console.log('free', topic)
 			setTimeout((data, topic)=>{
 				$.scope.runnerInUse.splice(data.runner, 1)
 				$.scope.runnerAvailable.splice(data.runner, 1)

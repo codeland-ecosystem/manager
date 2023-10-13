@@ -258,7 +258,6 @@ class CodeLandWorker{
 		while(true){
 			// Get the current system memory
 			let memory = await this.ssh.memory();
-			console.log('starting oven runners cooking', this.runnersCooking, 'runner list', Object.keys(this.__runners).length)
 
 			// Test conditions to see of we need more runners
 			if(this.runnersCooking > this.minAvailableRunners){

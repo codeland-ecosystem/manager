@@ -67,13 +67,6 @@ router.get('/:runner', async (req, res, next)=>{
   try{
     runner = clworker.runnerGetByName(req.params.runner);
 
-    console.log({
-      ...(await runner.info()),
-      lastStatus: runner.lastStatus,
-      statusHistory: runner.statusHistory,
-    })
-
-
     return res.json({
       ...(await runner.info()),
       lastStatus: runner.lastStatus,
