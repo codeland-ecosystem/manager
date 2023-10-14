@@ -53,9 +53,7 @@ const clworker = new CodelandController({ssh, ...conf.clworker});
 
   clworker.__log('df', (await clworker.ssh.df())['/'])
 
-  // setInterval(async (clworker)=>{
-  //   clworker.runnerFill()
-  // }, 30*1000, clworker)
+
 
 })()
 

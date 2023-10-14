@@ -1,4 +1,8 @@
 <%- include('top') %>
+<!-- <script type="text/javascript">
+	// Require login to see this page.
+	app.auth.forceLogin()
+</script> -->
 
 <!-- <script src="/static/lib/js/hterm_all.js"></script> -->
 <script src="/static-modules/ace-builds/src-noconflict/ace.js"></script>
@@ -9,6 +13,12 @@
 <script src="static-modules/xterm-addon-attach/lib/xterm-addon-attach.js"></script>
 
 <style type="text/css">
+
+	.actionMessage{
+		position: absolute;
+		z-index: 10000000;
+		width: 100%;
+	}
 
 	dev.card-body {
 		padding: 0 !important;
@@ -26,24 +36,24 @@
 	#editor {
 /*		background-color: blue;*/
 		height: 100%;
-	    margin: 0;
-	    top: 50px;
-	    top: 0;
-	    left: 0;
+		margin: 0;
+		top: 50px;
+		top: 0;
+		left: 0;
 /*	    width: 50%;
-	    display: inline-block;*/
+		display: inline-block;*/
 	}
 
 	#codeland-results {
 		background-color: darkgrey;
 		height: 100%;
-	    margin-bottom: 0;
+		margin-bottom: 0;
 /*	    top: 50px;
-	    top: 0;
-	    right: 0;*/
+		top: 0;
+		right: 0;*/
 /*	    width: 50%;
-	    float: right;
-	    display: inline-block;*/
+		float: right;
+		display: inline-block;*/
 /*	    overflow: scroll;*/*/
 	}
 
@@ -52,14 +62,23 @@
 
 <script type="text/javascript">
 	const interpreters = {
-	    'sh': 'echo "${}" | base64 --decode | bash',
-	    'python': 'echo "${}" | base64 --decode | python3',
-	    'javascript': 'echo "${}" | base64 --decode | node',
-	    'c_ccp': 'echo "${}" | base64 --decode | gcc -xc -o run1 - && ./run1',
+		'sh': 'echo "${code_in_base64}" | base64 --decode | bash',
+		'python': 'echo "${code_in_base64}" | base64 --decode | python3',
+		'javascript': 'echo "${code_in_base64}" | base64 --decode | node',
+		'c_ccp': 'echo "${code_in_base64}" | base64 --decode | gcc -xc -o run1 - && ./run1',
+		'php': "echo \"${code_in_base64}\" | base64 --decode | php",
+		"powershell": "echo \"${code_in_base64}\" | base64 --decode | pwsh -NonInteractive",
+		"lua": "echo \"${code_in_base64}\" | base64 --decode | lua",
+		"markdown": "echo \"${code_in_base64}\" | base64 --decode | pandoc -f markdown -t html",
+		"rust": "echo \"${code_in_base64}\" | base64 --decode | rustc -o run1 - && ./run1",
+		"perl": "echo \"${code_in_base64}\" | base64 --decode | perl",
+		"brainfuck": "echo \"${code_in_base64}\" | base64 --decode > /tmp/br.run; bf /tmp/br.run",
+
+		"golang": "echo \"${code_in_base64}\" | base64 --decode > /tmp/run.go; go run /tmp/run.go",
 	}
 
 	function parseCode(code, language){
-		return interpreters[language].replace('${}', btoa(code))
+		return interpreters[language].replace('${code_in_base64}', btoa(code))
 	}
 
 	var editor;
@@ -79,9 +98,9 @@
 		editor.setShowInvisibles(true);
 
 		editor.setOptions({
-		    enableBasicAutocompletion: true,
-		    enableSnippets: true,
-		    enableLiveAutocompletion: true
+			enableBasicAutocompletion: true,
+			enableSnippets: true,
+			enableLiveAutocompletion: true
 		});
 
 		// editor.commands.addCommands([
@@ -186,12 +205,20 @@
 		})
 
 		$('#execute').on('click', function(){
+			term.clear()
+			$('.results-buttons').find('button').each(function(){
+				$(this).addClass('disabled')
+			})
 			$editorSettings.hide()
 			$spinner.show()
-			app.util.actionMessage(`Executing...`, $('#codeland-results'), 'warning')
-			fitAddon.fit()
+			app.util.actionMessage(`
+				Executing...
+				<div class="spinner-border float-right" role="status">
+					<span class="sr-only">Loading...</span>
+				</div>
+			`, $('#codeland-results'), 'warning')
 			
-			app.codeland.once(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
+			app.codeland.persistentRun(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
 				$editorSettings.show()
 				$spinner.hide()
 				
@@ -199,11 +226,9 @@
 					console.log(err, data)
 					let message = (data && data.message) || err.message || err;
 					app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
-					fitAddon.fit()
 					return;
 				}
 				app.util.actionMessage('', $('#codeland-results'))
-				term.clear()
 
 				for(let line of data.res.split('\n')){
 					term.writeln(line)
@@ -227,7 +252,7 @@
 
 	});
 </script>
-<div class="row" style="height: 100%">
+<div class="row" style="height: 100%; display: none;">
 	<div class="codeland-col col-md-6" style="height: 100%;">
 		<div id="codeland-card" class="card shadow-lg">
 			<nav class="card-header navbar navbar-dark bg-dark">
@@ -240,7 +265,7 @@
 						<span class="sr-only">Loading...</span>
 					</div>
 
-			 			<button id="share" class="btn btn-outline-success btn-sm clodelandSettings">
+						<button id="share" class="btn btn-outline-success btn-sm clodelandSettings">
 							<i class="fa-solid fa-share-from-square"></i>
 							Share
 						</button>
@@ -257,17 +282,25 @@
 
 						<div id="codelandLanguageSelect" class="btn-group clodelandSettings">
 							<button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
-								<i class="fa-solid fa-hashtag"></i> Bash
+								<img src="/static/svg/bash.svg" height="16px" /></i> Bash
 							</button>
 							<div class="dropdown-menu">
-								<a class="dropdown-item active" value="sh"><i class="fa-solid fa-hashtag"></i> Bash</a>
+								<a class="dropdown-item active" value="sh"><img src="/static/svg/bash.svg" height="16px" /></i> Bash</a>
+								<a class="dropdown-item" value="powershell"><img src="/static/svg/PowerShell.svg" height="16px" /></i> PowerShell</a>
+								<a class="dropdown-item" value="perl"><img src="/static/svg/lua.svg" height="16px" /> Perl</a>
+								<a class="dropdown-item" value="php"><img src="/static/svg/php.svg" height="16px" /></i> php</a>
 								<a class="dropdown-item" value="javascript"><i class="fa-brands fa-node-js"></i> JavaScript</a>
 								<a class="dropdown-item" value="python"><i class="fa-brands fa-python"></i> Python</a>
 								<a class="dropdown-item" value="c_cpp"><i class="fa-solid fa-c"></i> c/c++</a>
+								<a class="dropdown-item" value="rust"><i class="fa-brands fa-rust"></i> Rust</a>
+								<a class="dropdown-item" value="lua"><img src="/static/svg/lua.svg" height="16px" /></i> Lua</a>
+								<a class="dropdown-item" value="golang"><img src="/static/svg/go.svg" height="16px" /></i> Go</a>
+								<a class="dropdown-item" value="markdown"><i class="fa-brands fa-markdown"></i> Markdown</a>
+								<a class="dropdown-item" value="brainfuck"><i class="fa-solid fa-brain"></i> Brianfuck</a>
 							</div>
 						</div>
 
-		 			<button id="execute" class="btn btn-outline-success btn-sm clodelandSettings">
+					<button id="execute" class="btn btn-outline-success btn-sm clodelandSettings">
 						<i class="fa-solid fa-play"></i>
 						Run!
 					</button>
@@ -308,7 +341,7 @@
 							</ul>
 						</div>
 
-			 			<button id="clear" class="disabled btn btn-outline-success btn-sm">
+						<button id="clear" class="disabled btn btn-outline-success btn-sm">
 							<i class="fa-solid fa-eraser"></i>
 							Clear
 						</button>
@@ -317,8 +350,8 @@
 					
 				</nav>
 
-			<div class="card-header actionMessage" style="display: none;"></div>
 			<div class="card-body" style="padding: 0">
+			<div class="card-header actionMessage" style="display: none;"></div>
 
 				<div id="codeland-results">
 				</div>

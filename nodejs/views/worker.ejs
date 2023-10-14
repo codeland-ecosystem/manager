@@ -1,4 +1,9 @@
 <%- include('top') %>
+<script type="text/javascript">
+	// Require login to see this page.
+	app.auth.forceLogin()
+</script>
+
 <style type="text/css">
 	div.card-body.jq-repeat-workerInfomation > ul > li.list-group-item{
 		padding: 2px;
@@ -85,6 +90,7 @@
 	let runnerStatusMap = {
 		available: 'primary',
 		inUse: 'warning',
+		complete: 'warning',
 		execute: 'success',
 		error: 'danger',
 		free: 'secondary',
@@ -98,8 +104,6 @@
 		$el.removeClass (function (index, className) {
 		    return (className.match (/(^|\s)list-group-item-\S+/g) || []).join(' ');
 		});
-
-		if(status === 'complete') status = 'inUse';
 
 		$el.addClass(`list-group-item-${runnerStatusMap[status]}`)
 	}
@@ -134,12 +138,12 @@
 
 		app.api.get('runner', function(err, data){
 			for(runner of data.runners){
-				if(runner.lastStatus !== 'available'){
-					$.scope.runnerInUse.push(runner)
+				if(runner.lastStatus.status !== 'available'){
+					$.scope.runnerInUse.push({...runner, ...runner.lastStatus})
 				}else{
-					$.scope.runnerAvailable.push(runner)
+					$.scope.runnerAvailable.push({...runner, ...runner.lastStatus})
 				}
-				runnerStatus(runner.name, runner.lastStatus)
+				runnerStatus(runner.name, runner.lastStatus.status)
 			}
 		});
 
@@ -211,15 +215,14 @@
 				data.info = `Execution took ${durationHuman} <i>(${data.duration}ms)</i>`
 			}
 
-			if(data.error && data.error.name){
-				data.info = `Error: <b>${data.error.name}</b>`
-			}
+			if(!data.lastStatus) data.lastStatus = {};
+
+			data.lastStatus.status = topic[4];
 
 			$.scope.runnerInUse.update(data.runner, data)
 
 			setTimeout((data, topic)=>{
 				runnerStatus(data.runner, data.error || topic[4])
-
 			}, 100, data, topic)
 
 		})
@@ -261,7 +264,7 @@
 </script>
 <div class="row" style="display:none">
 
-	<div class="col-4 col-md-4">
+	<div class="col-md-4">
 		<div id="workerStatusCard" class="card shadow-lg">
 			<div class="card-header">
 				<div id="workerStatus" class="float-right spinner-grow spinner-grow-sm text-success" role="status">
@@ -335,12 +338,21 @@
 					<span> Message: <b>{{oven.message}}</b> </span> <br/>
 				</p>
 
+				<span>
+					<button class="btn btn-sm btn-outline-danger" onclick="app.codeland.worker.killZombies()">
+						<center>
+							<i class="fa-solid fa-biohazard"></i><br />
+							Kill Zombies
+						</center>
+					</button>
+				</span>
+
 			</div>
 		
 		</div>
 	</div>
 
-	<div class="col-4 col-md-4">
+	<div class="col-md-4">
 		<div class="card shadow-lg">
 			<div class="card-header">
 				<i class="fa-solid fa-server"></i>
@@ -350,6 +362,9 @@
 
 				<ul class="list-group ist-group-flush">
 					<li id="runner-{{name}}" jq-repeat="runnerAvailable" class="list-group-item list-group-item-primary" style="display:none">
+						<button class="btn btn-sm btn-danger float-right" onclick="app.codeland.kill('{{name}}', ()=>{})">
+							<i class="fa-solid fa-power-off"></i>
+						</button>
 						{{name}}
 					</li>
 				</ul>
@@ -357,7 +372,7 @@
 		</div>
 	</div>
 
-	<div class="col-4 col-md-4">
+	<div class="col-md-4">
 		<div class="card shadow-lg">
 			<div class="card-header">
 				<i class="fa-solid fa-computer"></i>
@@ -367,8 +382,12 @@
 
 				<ul class="list-group">
 					<li id="runner-{{name}}" jq-repeat="runnerInUse" class="list-group-item list-group-item-warning" style="display:none">
+						<button class="btn btn-sm btn-danger float-right" onclick="app.codeland.kill('{{name}}', ()=>{})">
+							<i class="fa-solid fa-power-off"></i>
+						</button>
 						<span>{{name}}</span> <br />
-						<span>{{{info}}}</span>
+						<span>{{lastStatus.status}} - <b>{{{info}}}</b></span>
+						{{error}}
 					</li>
 				</ul>
 

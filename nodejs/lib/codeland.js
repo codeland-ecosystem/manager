@@ -1,67 +1,10 @@
 'use strict';
 
 const axios = require('axios');
+const conf = require('../conf')
+const { whenReady, sleep } = require('../utils');
 const { Ssh } = require('./ssh');
 const { LXC } = require('./lxc');
-const conf = require('../conf')
-
-function sleep(ms) {
-	return new Promise((resolve) => {
-		setTimeout(resolve, ms);
-	});
-}
-
-
-/**
- * A generator function that manages concurrent execution of promises and yields their results or errors.
- * @param {Function} promiseFactory - A function that returns a promise when called.
- * @param {number} want - The total number of promises to execute.
- * @param {number} delay - The delay (in milliseconds) to wait when reaching the concurrency limit.
- * @param {Array} ...args - Additional arguments to pass to the promiseFactory function.
- * @yields {Array} - Yields an array containing either an error or the result of each promise.
- */
-async function* whenReady(promiseFunc, want, delay, ...args) {
-  let working = 0;        // Number of promises currently executing.
-  let out = [];           // Array to store promise results.
-  let errors = [];        // Array to store promise errors.
-  let sent = 0;           // Number of promises sent for execution.
-  let sentErrors = 0;     // Number of error results sent.
-
-  while (sent < want) {
-    // Yield completed promise results.
-    while (sent < out.length) {
-      yield [null, out[sent++]];
-    }
-
-    // Yield error results.
-    while (sentErrors < errors.length) {
-      yield [errors[sentErrors++], null];
-    }
-
-    // Check if we've reached the concurrency limit.
-    if (working + out.length + errors.length >= want) {
-      if (working + out.length >= want) {
-        await sleep(delay);  // Delay if maximum concurrency is reached.
-        continue;
-      }
-    }
-
-    // Start executing a new promise.
-    (async function() {
-      try {
-        working++;
-        let res = await promiseFunc(...args);
-        out.push(res);   // Store the result if the promise succeeds.
-      } catch (error) {
-        errors.push(error);  // Store the error if the promise fails.
-      } finally {
-        working--;
-      }
-    })();
-
-    await sleep(500);
-  }
-}
 
 
 /*
@@ -85,7 +28,6 @@ class CodeLandWorker{
 			error.name = 'runnerTimedOut';
 			error.message = `The Execution time was longer then the timeout of ${time} seconds`;
 			error.status = 498;
-			error.runner = runner;
 			return error;
 		},
 		runnerExecutionFailed: (runner)=>{
@@ -93,7 +35,6 @@ class CodeLandWorker{
 			error.name = 'runnerExecutionFailed';
 			error.message = `The Execution on ${runner.name} failed for unknown reasons`;
 			error.status = 400;
-			error.runner = runner;
 			return error;
 		},
 		runnerNotFound: (runnerName)=>{
@@ -110,6 +51,13 @@ class CodeLandWorker{
 			error.status = 500;
 			return error;
 		},
+		workerBadGateway: ()=>{
+			const error = new Error('workerBadGateway');
+			error.name = 'workerBadGateway'
+			error.message = "The worker proxy can not reach the runner."
+			error.status = 502;
+			return error;
+		}
 	}
 
 	__logPrintIgnore = ['cl:worker:memory', 'cl:worker:df']
@@ -123,16 +71,21 @@ class CodeLandWorker{
 	}
 
 	__runnerSetStatus(runner, status, message){
-		if(runner instanceof LXC){
-			runner.lastStatus = status;
-			if(!runner.statusHistory) runner.statusHistory = [] 
-			runner.statusHistory.push({status, ...message})
-		}
-
 		this.__log(`runner:status:${status}`, {
 			runner: runner instanceof LXC ? runner.name : runner,
 			...(message || {}),
 		});
+
+		if(runner instanceof LXC){
+			if(message && message.error && message.error){
+				message.error = message.error.toString();
+			}
+
+			runner.lastStatus = {status, ...message};
+			if(!runner.statusHistory) runner.statusHistory = []
+			runner.statusHistory.push({status, ...message})
+		}	
+
 	}
 
 	__ovenSetStatus(status, message){
@@ -313,10 +266,8 @@ class CodeLandWorker{
 				await sleep(3000)
 				continue;
 			}else if(this.minAvailableRunners > Object.keys(this.__runners).length){
-				var ovenSize = 3;// = this.minAvailableRunners - Object.keys(this.__runners).length
+				var ovenSize = this.minAvailableRunners - Object.keys(this.__runners).length
 					 
-
-
 				this.__ovenSetStatus('cooking', {
 					message: `min runner count not met, oven size ${ovenSize}`,
 					cooking: ovenSize,
@@ -337,7 +288,6 @@ class CodeLandWorker{
 			try{
 				let ovenErrors = 0;
 				let newRunners = 0;
-
 				for await(const [error, runner] of whenReady(this.runnerMake.bind(this), ovenSize, 2000)){
 					if(error){
 						this.__ovenSetStatus('cooking:error', {error})
@@ -386,7 +336,7 @@ class CodeLandWorker{
 	*/
 	runnerPop(){
 		for(let [name, runner] of Object.entries(this.__runners)){
-			if(runner.lastStatus == 'available'){
+			if(runner.lastStatus.status == 'available'){
 				this.__runnerSetStatus(runner, 'inUse');
 
 				return runner
@@ -437,8 +387,7 @@ class CodeLandWorker{
 				error = this.errors.runnerTimedOut(time, runner);
 			}
 			if(error.code === 'ERR_BAD_RESPONSE'){
-				error = new Error('RunnerGatewayTimeout')
-				error.status = 502
+				error = this.errors.workerBadGateway();
 			}
 
 			this.__runnerSetStatus(runner, 'error', {error});
