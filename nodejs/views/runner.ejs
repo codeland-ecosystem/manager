@@ -72,11 +72,9 @@
 		"markdown": "echo \"${code_in_base64}\" | base64 --decode | pandoc -f markdown -t html",
 		"rust": "echo \"${code_in_base64}\" | base64 --decode | rustc -o run1 - && ./run1",
 		"perl": "echo \"${code_in_base64}\" | base64 --decode | perl",
-
 		"brainfuck": "echo \"${code_in_base64}\" | base64 --decode > /tmp/br.run; bf /tmp/br.run",
 
-
-
+		"golang": "echo \"${code_in_base64}\" | base64 --decode > /tmp/run.go; go run /tmp/run.go",
 	}
 
 	function parseCode(code, language){
@@ -296,10 +294,8 @@
 								<a class="dropdown-item" value="c_cpp"><i class="fa-solid fa-c"></i> c/c++</a>
 								<a class="dropdown-item" value="rust"><i class="fa-brands fa-rust"></i> Rust</a>
 								<a class="dropdown-item" value="lua"><img src="/static/svg/lua.svg" height="16px" /></i> Lua</a>
+								<a class="dropdown-item" value="golang"><img src="/static/svg/go.svg" height="16px" /></i> Go</a>
 								<a class="dropdown-item" value="markdown"><i class="fa-brands fa-markdown"></i> Markdown</a>
-
-
-
 								<a class="dropdown-item" value="brainfuck"><i class="fa-solid fa-brain"></i> Brianfuck</a>
 							</div>
 						</div>
