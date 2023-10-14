@@ -10,6 +10,7 @@ const app = express();
 // List of front end node modules to be served
 const frontEndModules = ['bootstrap', 'mustache', 'jquery', '@fortawesome',
   'moment', 'ace-builds', 'xterm', 'xterm-addon-fit', 'xterm-addon-attach',
+  'xterm-addon-webgl',
 ];
 
 // Hold list of functions to run when the server is ready
