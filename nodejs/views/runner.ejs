@@ -48,6 +48,11 @@
 		height: 100%;
 		bottom: 0;
 	}
+
+	#codeland-tty, #codeland-results{
+		padding-top: .5px;
+		padding-left: .5em;
+	}
 </style>
 
 <script type="text/javascript">
@@ -201,9 +206,9 @@ $(document).ready(function(){
 	});
 	
 	resultsTerm = new CLTerminal(document.getElementById('codeland-results'));
-	parseHash();
-
 	editor = buildAce($editor[0]);
+
+	parseHash();
 
 	/*
 		Set up event handlers
@@ -270,10 +275,10 @@ $(document).ready(function(){
 
 
 	$('button.codeland-GUI').on('click', function(event){
-		$('.codeland-GUI').toggle();
-		termTTY.fit()
-		resultsTerm.fit()
 		codelandGUIonResult = !codelandGUIonResult
+		$('.codeland-GUI').toggle();
+			termTTY.fit()
+			resultsTerm.fit()
 	});
 
 	/*
