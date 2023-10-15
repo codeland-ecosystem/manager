@@ -285,12 +285,15 @@ app.group = (function(app){
 
 app.codeland = (function(app){
 	var runner = {}
-	function setRunner(runnerName){
-		localStorage.setItem('lastRunner', runnerName);
+	function setRunner(runnerObj){
+		runnerObj = runnerObj || {};
+		localStorage.setItem('lastRunner', JSON.stringify(runnerObj));
 	}
 
 	function getRunner(){
-		return localStorage.getItem('lastRunner');
+		let runnerObj = localStorage.getItem('lastRunner') || '{}';
+		console.log(runnerObj);
+		return JSON.parse(runnerObj);
 	}
 
 
@@ -327,24 +330,27 @@ app.codeland = (function(app){
 	function kill(runner, callback){
 		if($.isFunction(runner)){
 			callback = runner;
-			runner = getRunner();
+			runner = getRunner().name;
 		}
 
 		app.api.delete(`runner/${runner}`, callback);
 	}	
 
 	function persistentRun(code, callback){
-		if(getRunner()){
-			call(code, getRunner(), function(err, data){
+		if(getRunner().name){
+			call(code, getRunner().name, function(err, data){
 				if(err && data.name === 'runnerNotFound'){
-					setRunner('')
+					setRunner()
 				}
 				callback(err, data);
 			})
 		}else{
 			newRunner(code, function(err, data){
 				if(err) return callback(err, data);
-				setRunner(data.runner)
+				setRunner({
+					name: data.runner,
+					domain: data.domain,
+				})
 				callback(err, data);
 			});
 		}
@@ -353,7 +359,7 @@ app.codeland = (function(app){
 	function info(runner, callback){
 		if($.isFunction(runner)){
 			callback = runner;
-			runner = getRunner();
+			runner = getRunner().name;
 		}
 		app.api.get(`runner/${runner}`, callback);
 	}

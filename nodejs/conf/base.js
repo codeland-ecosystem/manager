@@ -27,5 +27,6 @@ module.exports = {
 		runnerTemplate: 'crunner0',
 		memTarget: 1,
 		minAvailableRunners: 10,
+		domain: 'prod.718it.codeland.us',
 	},
 };

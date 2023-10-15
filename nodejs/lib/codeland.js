@@ -140,6 +140,9 @@ class CodeLandWorker{
 		// Hold the base template for new runners
 		this.runnerTemplate = args.runnerTemplate;
 
+		// Hold the current domain for this runner
+		this.domain = args.domain;
+
 		// Set the prefix for cloned runners
 		this.runnerPrefix = args.runnerPrefix || `${this.runnerTemplate}-${conf.environment}-`;
 		
@@ -219,7 +222,8 @@ class CodeLandWorker{
 			this.__runnerSetStatus(name, 'oven:cooking');
 			this.runnersCooking++
 			runner = await this.runnerTemplate.startEphemeral(name);
-			runner.statusHistory = []
+			runner.statusHistory = [];
+			runner.domain = `${runner.name}.${this.domain}`;
 
 
 			let tryCount = 0;
@@ -379,7 +383,12 @@ class CodeLandWorker{
 
 			this.__runnerSetStatus(runner, 'complete', {duration});
 
-			return {runner: runner.name, duration, ...res.data};
+			return {
+				runner: runner.name,
+				domain: runner.domain,
+				duration,
+				...res.data
+			};
 
 
 		}catch(error){
