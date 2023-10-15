@@ -11,6 +11,7 @@ router.get('/', async(req, res, next)=>{
     for(const [name, runner] of Object.entries(clworker.__runners)){
       runners.push({
         name: name,
+        domain: runner.domain,
         lastStatus: runner.lastStatus || '__none__',
         ...'detail' in req.query ? {
           ...(await runner.info()),
@@ -69,6 +70,7 @@ router.get('/:runner', async (req, res, next)=>{
     return res.json({
       ...(await runner.info()),
       lastStatus: runner.lastStatus,
+      domain: runner.domain,
       statusHistory: runner.statusHistory,
     });
   }catch(error){
