@@ -293,7 +293,11 @@ app.codeland = (function(app){
 	function getRunner(){
 		let runnerObj = localStorage.getItem('lastRunner') || '{}';
 		console.log(runnerObj);
-		return JSON.parse(runnerObj);
+		try{
+			return JSON.parse(runnerObj);
+		}catch(error){
+			return {};
+		}
 	}
 
 
