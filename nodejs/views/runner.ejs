@@ -4,13 +4,15 @@
 	app.auth.forceLogin()
 </script> -->
 
-<!-- <script src="/static/lib/js/hterm_all.js"></script> -->
 <script src="/static-modules/ace-builds/src-noconflict/ace.js"></script>
 
 <link rel="stylesheet" href="static-modules/xterm/css/xterm.css" />
 <script src="static-modules/xterm/lib/xterm.js"></script>
 <script src="static-modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
 <script src="static-modules/xterm-addon-attach/lib/xterm-addon-attach.js"></script>
+<script src="static-modules/xterm-addon-webgl/lib/xterm-addon-webgl.js"></script>
+
+<script src="static/js/clterminal.js"></script>
 
 <style type="text/css">
 
@@ -34,223 +36,270 @@
 	}
 
 	#editor {
-/*		background-color: blue;*/
 		height: 100%;
 		margin: 0;
 		top: 50px;
 		top: 0;
 		left: 0;
-/*	    width: 50%;
-		display: inline-block;*/
 	}
 
-	#codeland-results {
-		background-color: darkgrey;
+	div.codeland-GUI{
+		background-color: black;
 		height: 100%;
-		margin-bottom: 0;
-/*	    top: 50px;
-		top: 0;
-		right: 0;*/
-/*	    width: 50%;
-		float: right;
-		display: inline-block;*/
-/*	    overflow: scroll;*/*/
+		bottom: 0;
 	}
-
-
 </style>
 
 <script type="text/javascript">
-	const interpreters = {
-		'sh': 'echo "${code_in_base64}" | base64 --decode | bash',
-		'python': 'echo "${code_in_base64}" | base64 --decode | python3',
-		'javascript': 'echo "${code_in_base64}" | base64 --decode | node',
-		'c_ccp': 'echo "${code_in_base64}" | base64 --decode | gcc -xc -o run1 - && ./run1',
-		'php': "echo \"${code_in_base64}\" | base64 --decode | php",
-		"powershell": "echo \"${code_in_base64}\" | base64 --decode | pwsh -NonInteractive",
-		"lua": "echo \"${code_in_base64}\" | base64 --decode | lua",
-		"markdown": "echo \"${code_in_base64}\" | base64 --decode | pandoc -f markdown -t html",
-		"rust": "echo \"${code_in_base64}\" | base64 --decode | rustc -o run1 - && ./run1",
-		"perl": "echo \"${code_in_base64}\" | base64 --decode | perl",
-		"brainfuck": "echo \"${code_in_base64}\" | base64 --decode > /tmp/br.run; bf /tmp/br.run",
+var editor;
+var currentLanguage = 'sh';
+var termTTY;
+var resultsTerm;
+var codelandGUIonResult = false;
 
-		"golang": "echo \"${code_in_base64}\" | base64 --decode > /tmp/run.go; go run /tmp/run.go",
+/*
+	Parse the code from into what the runners wants
+*/
+const interpreters = {
+	'sh': 'echo "${code_in_base64}" | base64 --decode | bash',
+	'python': 'echo "${code_in_base64}" | base64 --decode | python3',
+	'javascript': 'echo "${code_in_base64}" | base64 --decode | node',
+	'c_ccp': 'echo "${code_in_base64}" | base64 --decode | gcc -xc -o run1 - && ./run1',
+	'php': "echo \"${code_in_base64}\" | base64 --decode | php",
+	"powershell": "echo \"${code_in_base64}\" | base64 --decode | pwsh -NonInteractive",
+	"lua": "echo \"${code_in_base64}\" | base64 --decode | lua",
+	"markdown": "echo \"${code_in_base64}\" | base64 --decode | pandoc -f markdown -t html",
+	"rust": "echo \"${code_in_base64}\" | base64 --decode | rustc -o run1 - && ./run1",
+	"perl": "echo \"${code_in_base64}\" | base64 --decode | perl",
+	"brainfuck": "echo \"${code_in_base64}\" | base64 --decode > /tmp/br.run; bf /tmp/br.run",
+
+	"golang": "echo \"${code_in_base64}\" | base64 --decode > /tmp/run.go; go run /tmp/run.go",
+}
+
+function parseCode(code, language){
+	return interpreters[language].replace('${code_in_base64}', btoa(code))
+}
+
+/*	
+	Map the arguments from the URL hash to what functions will edit the
+	correct part of the page
+*/
+
+function updateURL(key, value){
+	let hash = new URLSearchParams(window.location.hash.replace(/^\#/, ''));
+	hash.set(key, value);
+
+	window.location.hash = hash.toString();
+}
+
+const urlMap = {
+	language: updateLanguage,
+	keyboard: updateKeybpard,
+	code: updateCode
+};
+
+function parseHash(){
+	for (const [key, value] of new URLSearchParams(window.location.hash.replace(/^\#/, ''))) {
+		if(urlMap[key]) urlMap[key](value, false)
 	}
+}
 
-	function parseCode(code, language){
-		return interpreters[language].replace('${code_in_base64}', btoa(code))
-	}
+/*
+	Helper functions to update the DOM. Functions will be called via event, 
+	or other helper functions
+*/
 
-	var editor;
-	var currentLanguage = 'sh';
-
-	$(document).ready(function(){
-
-		editor = ace.edit($('#editor')[0]);
-		// ace.require('ace/ext/settings_menu').init(editor);
-		ace.require("ace/ext/language_tools");
-		// editor.$blockScrolling = Infinity;
-		editor.setFontSize(16);
-		editor.setTheme("ace/theme/monokai");
-		editor.getSession().setMode("ace/mode/sh");
-		editor.setKeyboardHandler("ace/keyboard/sublime");
-
-		editor.setShowInvisibles(true);
-
-		editor.setOptions({
-			enableBasicAutocompletion: true,
-			enableSnippets: true,
-			enableLiveAutocompletion: true
-		});
-
-		// editor.commands.addCommands([
-		//     {
-		//         name: "showSettingsMenu",
-		//         bindKey: {
-		//             win: "Ctrl-q",
-		//             mac: "Ctrl-q"
-		//         },
-		//         exec: function (editor) {
-		//             editor.showSettingsMenu();
-		//         },
-		//         readOnly: true
-		//     }
-		// ]);
-
-
-		term = new Terminal();
-		const fitAddon = new FitAddon.FitAddon()
-		term.loadAddon( fitAddon );
-		term.open(document.getElementById('codeland-results'));
-		fitAddon.fit()
-		
-
-		$(window).resize(function(){
-		  fitAddon.fit()
-		});
-
-		$editorSettings = $('.clodelandSettings');
-		$spinner = $('#workerStatus');
-		$results = $('#codeland-results');
-		$codelandKeyboardSelect = $('#codelandKeyboardSelect');
-		$codelandLanguageSelect = $('#codelandLanguageSelect');
-
-		function updateDropDown(value, $elelemt){
-			let text;
-			$elelemt.find('a.dropdown-item').each(function(index){
-				let $this = $(this)
-				if($this.attr('value') === value){
-					$this.addClass('active');
-					text = $this.html()
-				}else{
-					$this.removeClass('active')
-				}
-			});
-
-			$($elelemt.find('button.dropdown-toggle')[0]).html(text)
-
-			return !!text;
+// Helper function to update drop down menus
+function updateDropDown(value, $elelemt){
+	let text;
+	$elelemt.find('a.dropdown-item').each(function(index){
+		let $this = $(this)
+		if($this.attr('value') === value){
+			$this.addClass('active');
+			text = $this.html()
+		}else{
+			$this.removeClass('active')
 		}
-
-		function updateURL(key, value){
-			let hash = new URLSearchParams(window.location.hash.replace(/^\#/, ''));
-			hash.set(key, value);
-
-			window.location.hash = hash.toString();
-		}
-
-		const urlMap = {
-			language: updateLanguage,
-			keyboard: updateKeybpard,
-			code:updatCode
-		};
-
-		function parseHash(){
-			for (const [key, value] of new URLSearchParams(window.location.hash.replace(/^\#/, ''))) {
-				if(urlMap[key]) urlMap[key](value, false)
-			}
-		}
-
-		parseHash();
-
-		function updateKeybpard(keyboard, appendURL=true){
-			if(updateDropDown(keyboard, $codelandKeyboardSelect)){
-			console.log('here')
-				editor.setKeyboardHandler(`ace/keyboard/${keyboard}`);
-				if(appendURL) updateURL('keyboard', keyboard);
-			}
-		}
-
-		function updateLanguage(language, appendURL=true){
-			if(updateDropDown(language, $codelandLanguageSelect)){
-				editor.getSession().setMode(`ace/mode/${language}`);
-				currentLanguage = language;
-				if(appendURL) updateURL('language', language);
-			}
-		}
-
-		function updatCode(code, appendURL){
-			code = atob(code)
-			editor.setValue(code)
-		}
-
-		function setCode(code){
-			code = btoa(code)
-			updateURL('language', currentLanguage)
-			updateURL('code', code)
-		}
-
-		$('#share').on('click', function(){
-			setCode(editor.getValue());
-		})
-
-		$('#execute').on('click', function(){
-			term.clear()
-			$('.results-buttons').find('button').each(function(){
-				$(this).addClass('disabled')
-			})
-			$editorSettings.hide()
-			$spinner.show()
-			app.util.actionMessage(`
-				Executing...
-				<div class="spinner-border float-right" role="status">
-					<span class="sr-only">Loading...</span>
-				</div>
-			`, $('#codeland-results'), 'warning')
-			
-			app.codeland.persistentRun(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
-				$editorSettings.show()
-				$spinner.hide()
-				
-				if(err){
-					console.log(err, data)
-					let message = (data && data.message) || err.message || err;
-					app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
-					return;
-				}
-				app.util.actionMessage('', $('#codeland-results'))
-
-				for(let line of data.res.split('\n')){
-					term.writeln(line)
-				}
-
-				$.scope.runInformation.update(data)
-				$('.results-buttons').find('button').each(function(){
-					$(this).removeClass('disabled')
-				})
-
-			})
-		});
-
-		$codelandKeyboardSelect.on('click', 'a.dropdown-item', function(event){
-			updateKeybpard($(this).attr('value'))
-		});
-
-		$codelandLanguageSelect.on('click', 'a.dropdown-item', function(event){
-			updateLanguage($(this).attr('value'))
-		});
-
 	});
+
+	$($elelemt.find('button.dropdown-toggle')[0]).html(text)
+
+	return !!text;
+}
+
+function updateKeybpard(keyboard, appendURL=true){
+	if(updateDropDown(keyboard, $codelandKeyboardSelect)){
+	console.log('here')
+		editor.setKeyboardHandler(`ace/keyboard/${keyboard}`);
+		if(appendURL) updateURL('keyboard', keyboard);
+	}
+}
+
+function updateLanguage(language, appendURL=true){
+	if(updateDropDown(language, $codelandLanguageSelect)){
+		editor.getSession().setMode(`ace/mode/${language}`);
+		currentLanguage = language;
+		if(appendURL) updateURL('language', language);
+	}
+}
+
+function updateCode(code, appendURL){
+	code = atob(code)
+	editor.setValue(code)
+}
+
+// Used by the share button to set the URL hash
+function setCode(code){
+	code = btoa(code)
+	updateURL('language', currentLanguage)
+	updateURL('code', code)
+}
+
+function buildAce(elelemt){
+	editor = ace.edit(elelemt);
+	// ace.require('ace/ext/settings_menu').init(editor);
+	ace.require("ace/ext/language_tools");
+	// editor.$blockScrolling = Infinity;
+	editor.setFontSize(16);
+	editor.setTheme("ace/theme/monokai");
+	editor.getSession().setMode("ace/mode/sh");
+	editor.setKeyboardHandler("ace/keyboard/sublime");
+	editor.setShowInvisibles(true);
+	editor.setOptions({
+		enableBasicAutocompletion: true,
+		enableSnippets: true,
+		enableLiveAutocompletion: true
+	});
+
+	return editor;
+}
+
+$(document).ready(function(){
+	/*
+		Cache common DOM elements
+	*/
+	$editor = $('#editor')
+	$editorSettings = $('.clodelandSettings');
+	$spinner = $('#workerStatus');
+	$results = $('#codeland-results');
+	$codelandKeyboardSelect = $('#codelandKeyboardSelect');
+	$codelandLanguageSelect = $('#codelandLanguageSelect');
+
+	/*
+		Create instances that need the DOM ready
+	*/
+	app.codeland.persistentRun('ttyd -W bash > ~/.TTYD 2>&1 & echo "done"', (err, data)=>{
+		if(err){
+			let message = (data && data.message) || err.message || err;
+			return app.util.actionMessage(
+				`Failed with: <b>${message}</b><br/> Refreshing may clear the error...`,
+				$('#codeland-tty'),
+				'danger',
+			);
+		}
+		termTTY = new CLTerminalWs(document.getElementById('codeland-tty'), `wss://7681.${app.codeland.getRunner().domain}/ws`)
+	});
+	
+	resultsTerm = new CLTerminal(document.getElementById('codeland-results'));
+	parseHash();
+
+	editor = buildAce($editor[0]);
+
+	/*
+		Set up event handlers
+	*/
+	$('#share').on('click', function(){
+		setCode(editor.getValue());
+	});
+
+	$('#execute').on('click', function(){
+		resultsTerm.clear()
+		$('.results-buttons').find('button').each(function(){
+			$(this).addClass('disabled')
+		})
+		$editorSettings.hide()
+		$spinner.show()
+		app.util.actionMessage(`
+			Executing...
+			<div class="spinner-border float-right" role="status">
+				<span class="sr-only">Loading...</span>
+			</div>
+		`, $('#codeland-results'), 'warning')
+		
+		app.codeland.persistentRun(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
+			$editorSettings.show()
+			$spinner.hide()
+			
+			if(err){
+				console.log(err, data)
+				let message = (data && data.message) || err.message || err;
+				app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
+				return;
+			}
+			app.util.actionMessage('', $('#codeland-results'))
+
+			for(let line of data.res.split('\n')){
+				resultsTerm.writeln(line)
+			}
+
+			if(!codelandGUIonResult) $('#codeland-GUI-resrilt-spiner').show()
+
+			$.scope.runInformation.update(data)
+			$('.results-buttons').find('button').each(function(){
+				$(this).removeClass('disabled')
+			})
+
+		})
+	});
+
+	$codelandKeyboardSelect.on('click', 'a.dropdown-item', function(event){
+		updateKeybpard($(this).attr('value'))
+	});
+
+	$codelandLanguageSelect.on('click', 'a.dropdown-item', function(event){
+		updateLanguage($(this).attr('value'))
+	});
+
+	$('#runnerInfo').on('click', function(event){
+		app.codeland.info(function(err, data){
+			if(err) return console.log('info error', err, data)
+			$.scope.runInformation.update({runner: name, ...data});
+		});
+	})
+
+
+
+	$('button.codeland-GUI').on('click', function(event){
+		$('.codeland-GUI').toggle();
+		termTTY.fit()
+		resultsTerm.fit()
+		codelandGUIonResult = !codelandGUIonResult
+	});
+
+	/*
+		pre-load the runner info info with spinners until its clicked on
+	*/
+
+	let loadingHTML = `
+	<div class="spinner-border text-warning spinner-border-sm" role="status">
+		<span class="sr-only">Loading...</span>
+	</div>
+	Loading...
+	`
+	$.scope.runInformation.update({
+		runner: loadingHTML,
+		duration: loadingHTML,
+		domain: loadingHTML,
+		ip: loadingHTML,
+		rx: loadingHTML,
+		tx: loadingHTML,
+		total: loadingHTML,
+		link: loadingHTML,
+		kmem: loadingHTML,
+		memory: loadingHTML,
+	});
+
+});
 </script>
 <div class="row" style="height: 100%; display: none;">
 	<div class="codeland-col col-md-6" style="height: 100%;">
@@ -320,27 +369,66 @@
 		<div id="codeland-card" class="card shadow-lg">
 
 				<nav class="card-header navbar navbar-dark bg-dark">
-					<a class="navbar-brand">
+					<a id="tile-terminal" class="navbar-brand codeland-GUI">
 						<i class="fa-solid fa-terminal"></i>
-						Results
-					</a>
-					<div class="results-buttons d-inline">
+						Terminal
+						<button class="btn btn-outline-success btn-sm codeland-GUI" onclick="$('#codeland-GUI-resrilt-spiner').hide()">
+							<i class="fa-solid fa-retweet"></i>
+							<div id="codeland-GUI-resrilt-spiner" class="spinner-grow text-warning" role="status" style="display: none; position: absolute;">
+							  <span class="sr-only">Loading...</span>
+							</div>
+								Results
+						</button>
 
-						<button class="disabled btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
+					</a>
+					<a id="tile-result" class="navbar-brand codeland-GUI" style="display: none;">
+						<i class="fa-solid fa-outdent"></i>
+						Results
+						<button class="btn btn-outline-success btn-sm codeland-GUI" style="display: none;">
+							<i class="fa-solid fa-retweet"></i>
+								Terminal
+						</button>
+					</a>
+
+
+					<div class=" dropdown dropleft results-buttons d-inline">
+						<button id="runnerInfo" class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
 							<i class="fa-solid fa-circle-info"></i>
-							Information
 						</button>
 						<div class="dropdown-menu">
 							<ul class="list-group list-group-flush" jq-repeat="runInformation">
 								<li class="list-group-item py-1">
-									Runner: <b>{{runner}}</b>
+									Runner: <b>{{{runner}}}</b>
 								</li>
 								<li class="list-group-item py-1">
-									Duration: <b>{{duration}}</b><i>ms</i>
+									Duration: <b>{{{duration}}}</b><i>ms</i>
+								</li>
+								<li class="list-group-item py-1">
+									domain: <b>{{{domain}}}</b>
+								</li>
+								<li class="list-group-item py-1">
+									ip: <b>{{{ip}}}</b>
+								</li>
+								<li class="list-group-item py-1">
+									rx: <b>{{{rx}}}</b>
+								</li>
+								<li class="list-group-item py-1">
+									tx: <b>{{{tx}}}</b>
+								</li>
+								<li class="list-group-item py-1">
+									total: <b>{{{total}}}</b>
+								</li>
+								<li class="list-group-item py-1">
+									link: <b>{{{link}}}</b>
+								</li>
+								<li class="list-group-item py-1">
+									kmem: <b>{{{kmem}}}</b>
+								</li>
+								<li class="list-group-item py-1">
+									memory: <b>{{{memory}}}</b>
 								</li>
 							</ul>
 						</div>
-
 						<button id="clear" class="disabled btn btn-outline-success btn-sm">
 							<i class="fa-solid fa-eraser"></i>
 							Clear
@@ -353,8 +441,8 @@
 			<div class="card-body" style="padding: 0">
 			<div class="card-header actionMessage" style="display: none;"></div>
 
-				<div id="codeland-results">
-				</div>
+				<div id="codeland-results" class="codeland-GUI" style="display:none"></div>
+				<div id="codeland-tty" class="codeland-GUI"></div>
 
 			</div>
 		

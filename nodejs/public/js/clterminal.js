@@ -7,7 +7,6 @@ class CLTerminal extends Terminal{
 		this.addonMap = {};
 
 		this.pushAddons('FitAddon', 'WebglAddon');
-
 		this.open()
 
 		$(window).resize(()=>{
@@ -28,10 +27,9 @@ class CLTerminal extends Terminal{
 	}
 
 	pushAddons(...addons) {
-		console.log('called', addons)
 		for(const addon of addons){
 			if (this.addonMap[addon] || !addon) continue;
-			console.log('here', addon, 'window[addon]', window[addon])
+
 			this.addonMap[addon] = new window[addon][addon]();  // Remove the extra dot.
 			this.loadAddon(this.addonMap[addon]);
 		}
@@ -67,13 +65,12 @@ class CLTerminalWs extends CLTerminal{
 				// 1 term title
 				// 2 term options object
 			if(messageType === "0") return this.write(body)
-			console.log('onmessage', messageType, body)
+
 
 			// todo... do something with #2
 		}
 
 		this.socket.onopen = (event)=>{
-			var e;
 			console.log("[ttyd] websocket connection opened");
 			const message = JSON.stringify({
 			    AuthToken: this.token || '',
