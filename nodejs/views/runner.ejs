@@ -123,9 +123,9 @@ function parseHash(){
 */
 
 // Helper function to update drop down menus
-function updateDropDown(value, $elelemt){
+function updateDropDown(value, $elememt){
 	let text;
-	$elelemt.find('a.dropdown-item').each(function(index){
+	$elememt.find('a.dropdown-item').each(function(index){
 		let $this = $(this)
 		if($this.attr('value') === value){
 			$this.addClass('active');
@@ -135,7 +135,7 @@ function updateDropDown(value, $elelemt){
 		}
 	});
 
-	$($elelemt.find('button.dropdown-toggle')[0]).html(text)
+	$($elememt.find('button.dropdown-toggle')[0]).html(text)
 
 	return !!text;
 }
@@ -167,8 +167,8 @@ function setCode(code){
 	updateURL('code', code)
 }
 
-function buildAce(elelemt){
-	editor = ace.edit(elelemt);
+function buildAce(elememt){
+	editor = ace.edit(elememt);
 	// ace.require('ace/ext/settings_menu').init(editor);
 	ace.require("ace/ext/language_tools");
 	// editor.$blockScrolling = Infinity;
@@ -186,6 +186,34 @@ function buildAce(elelemt){
 	return editor;
 }
 
+function startTtyTerminal($element){
+	app.util.actionMessage(
+		`Loading terminal from remote runenr`,
+		$element,
+		'warning',
+	);
+
+	app.codeland.persistentRun('ttyd -W bash > ~/.TTYD 2>&1 & echo "done"', (err, data)=>{
+		if(err){
+			let message = (data && data.message) || err.message || err;
+			return app.util.actionMessage(
+				`Failed with: <b>${message}</b><br/> Refreshing may clear the error...`,
+				$element,
+				'danger',
+			);
+		}
+
+		termTTY = new CLTerminalWs(
+			$element.get(0),
+			`wss://7681.${data.domain}/ws`,
+			function(){
+				// Clear aurrent actions message
+				app.util.actionMessage(``, $element);
+			},
+		);
+	});
+}
+
 $(document).ready(function(){
 	/*
 		Cache common DOM elements
@@ -201,27 +229,7 @@ $(document).ready(function(){
 		Create instances that need the DOM ready
 	*/
 
-	app.util.actionMessage(
-		`Loading terminal from remote runenr`,
-		$('#codeland-tty'),
-		'warning',
-	);
-
-	app.codeland.persistentRun('ttyd -W bash > ~/.TTYD 2>&1 & echo "done"', (err, data)=>{
-		if(err){
-			let message = (data && data.message) || err.message || err;
-			return app.util.actionMessage(
-				`Failed with: <b>${message}</b><br/> Refreshing may clear the error...`,
-				$('#codeland-tty'),
-				'danger',
-			);
-		}
-		app.util.actionMessage(
-			``,
-			$('#codeland-tty'),
-		);
-		termTTY = new CLTerminalWs(document.getElementById('codeland-tty'), `wss://7681.${app.codeland.getRunner().domain}/ws`)
-	});
+	startTtyTerminal($('#codeland-tty'))
 	
 	resultsTerm = new CLTerminal(document.getElementById('codeland-results'));
 	editor = buildAce($editor[0]);
@@ -288,6 +296,22 @@ $(document).ready(function(){
 			$.scope.runInformation.update({runner: name, ...data});
 		});
 	})
+
+	$('#runnerRecycle').on('click', function(event){
+		app.util.actionMessage(
+			`Getting new runner...`,
+			$('#codeland-tty'),
+			'warning',
+		);
+		if(termTTY) try{
+			// https://github.com/xtermjs/xterm.js/issues/4757
+			termTTY.dispose();
+		}catch(error){}
+
+		app.codeland.kill(function(){
+			startTtyTerminal($('#codeland-tty'));
+		});
+	});
 
 	$('button.codeland-GUI').on('click', function(event){
 		codelandGUIonResult = !codelandGUIonResult
@@ -461,7 +485,7 @@ $(document).ready(function(){
 
 					<button id="execute" class="btn btn-outline-success btn-sm clodelandSettings">
 						<i class="fa-solid fa-play"></i>
-						Run!
+						Run
 					</button>
 				</div>
 				
@@ -502,6 +526,9 @@ $(document).ready(function(){
 
 
 					<div class=" dropdown dropleft results-buttons d-inline">
+						<button id="runnerRecycle" class="btn btn-outline-warning btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Get a new runner">
+							<i class="fa-solid fa-recycle"></i>
+						</button>
 						<button id="runnerInfo" class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
 							<i class="fa-solid fa-circle-info"></i>
 						</button>
