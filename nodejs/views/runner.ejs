@@ -83,10 +83,9 @@ const interpreters = {
     "ruby": "echo \"${code_in_base64}\" | base64 --decode | ruby",
     "typescript": "echo \"${code_in_base64}\" | base64 --decode | ts-node",
     "csharp": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.cs; mcs /tmp/code.cs -out:/tmp/code.exe; mono /tmp/code.exe",
-
     "swift": "echo \"${code_in_base64}\" | base64 --decode | swift",
-
-
+	
+	/* I cant get solidity to work, todo... */
     "solidity": "echo \"${code_in_base64}\" | base64 --decode > /tmp/main.sol; solc --allow-paths /usr/bin/ --assemble --overwrite /tmp/main.sol",
 }
 
@@ -143,7 +142,6 @@ function updateDropDown(value, $elelemt){
 
 function updateKeybpard(keyboard, appendURL=true){
 	if(updateDropDown(keyboard, $codelandKeyboardSelect)){
-	console.log('here')
 		editor.setKeyboardHandler(`ace/keyboard/${keyboard}`);
 		if(appendURL) updateURL('keyboard', keyboard);
 	}
@@ -202,6 +200,13 @@ $(document).ready(function(){
 	/*
 		Create instances that need the DOM ready
 	*/
+
+	app.util.actionMessage(
+		`Loading terminal from remote runenr`,
+		$('#codeland-tty'),
+		'warning',
+	);
+
 	app.codeland.persistentRun('ttyd -W bash > ~/.TTYD 2>&1 & echo "done"', (err, data)=>{
 		if(err){
 			let message = (data && data.message) || err.message || err;
@@ -211,6 +216,10 @@ $(document).ready(function(){
 				'danger',
 			);
 		}
+		app.util.actionMessage(
+			``,
+			$('#codeland-tty'),
+		);
 		termTTY = new CLTerminalWs(document.getElementById('codeland-tty'), `wss://7681.${app.codeland.getRunner().domain}/ws`)
 	});
 	
@@ -245,7 +254,6 @@ $(document).ready(function(){
 			$spinner.hide()
 			
 			if(err){
-				console.log(err, data)
 				let message = (data && data.message) || err.message || err;
 				app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
 				return;
@@ -280,8 +288,6 @@ $(document).ready(function(){
 			$.scope.runInformation.update({runner: name, ...data});
 		});
 	})
-
-
 
 	$('button.codeland-GUI').on('click', function(event){
 		codelandGUIonResult = !codelandGUIonResult

@@ -48,12 +48,12 @@ class CLTerminalWs extends CLTerminal{
 	}
 
 	termListeners (){
-		this.onKey((event)=>{
-			this.socket.send(this.textEncoder.encode(0+event.key))
+		this.onData((data)=>{
+			this.socket.send(this.textEncoder.encode(0+data));
 		});
 
 		this.onResize((data)=>{
-			this.socket.send(this.textEncoder.encode(1+JSON.stringify(data)))
+			this.socket.send(this.textEncoder.encode(1+JSON.stringify(data)));
 		});
 	}
 
