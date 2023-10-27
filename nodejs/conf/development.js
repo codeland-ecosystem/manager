@@ -25,7 +25,7 @@ module.exports = {
 	},
 	clworker: {
 		runnerTemplate: 'crunner0',
-		memTarget: 25,
+		memTarget: 15,
 		minAvailableRunners: 10,
 		domain: 'dev.718it.codeland.us',
 	},
