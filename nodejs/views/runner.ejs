@@ -84,8 +84,15 @@ const interpreters = {
     "typescript": "echo \"${code_in_base64}\" | base64 --decode | ts-node",
     "csharp": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.cs; mcs /tmp/code.cs -out:/tmp/code.exe; mono /tmp/code.exe",
     "swift": "echo \"${code_in_base64}\" | base64 --decode | swift",
+    "r": "echo \"${code_in_base64}\" | base64 --decode | R --no-save",
+    "scala": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.scala; scala -i /tmp/code.scala",
+    "haskell": "echo \"${code_in_base64}\" | base64 --decode | runhaskell",
+    "groovy": "export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64; echo \"${code_in_base64}\" | base64 --decode > /tmp/code.groovy; groovy -d /tmp/code.groovy",
 	
+    /*To add*/
+
 	/* I cant get solidity to work, todo... */
+    "fortran": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.f; gfortran -o /tmp/code /tmp/code.f && ./tmp/code",
     "solidity": "echo \"${code_in_base64}\" | base64 --decode > /tmp/main.sol; solc --allow-paths /usr/bin/ --assemble --overwrite /tmp/main.sol",
 }
 
@@ -425,11 +432,36 @@ $(document).ready(function(){
 									Ruby
 								</a>
 
+								<a class="dropdown-item" value="r">
+									<img src="/static/svg/r.svg" height="16px"/>
+									R
+								</a>
+
 								<hr style="margin: 0;" />
 
 								<a class="dropdown-item" value="java">
 									<img src="/static/svg/java.svg" height="16px"/>
 									Java
+								</a>
+
+								<a class="dropdown-item" value="scala">
+									<img src="/static/svg/scala.svg" height="16px"/>
+									Scala
+								</a>
+
+								<a class="dropdown-item" value="haskell">
+									<img src="/static/svg/haskell.svg" height="16px"/>
+									Haskell
+								</a>
+
+								<a class="dropdown-item" value="groovy">
+									<img src="/static/svg/groovy.svg" height="16px"/>
+									Groovy
+								</a>
+
+								<a class="dropdown-item disabled" value="fortran">
+									<img src="/static/svg/fortran.svg" height="16px"/>
+									Fortran
 								</a>
 
 								<a class="dropdown-item" value="csharp">
