@@ -38,22 +38,24 @@ class CLTerminal extends Terminal{
 
 
 class CLTerminalWs extends CLTerminal{
-	constructor(element, wsURL){
+	constructor(element, wsURL, onReady){
 		super(element)
 		this.textEncoder = new TextEncoder({encoding: "utf-8"})
 		this.socket = new WebSocket(wsURL, ['tty']);
+		this.onReady = onReady || function(){};
+		this.isReady = false;
 
 		this.termListeners()
 		this.socketListeners()
 	}
 
 	termListeners (){
-		this.onKey((event)=>{
-			this.socket.send(this.textEncoder.encode(0+event.key))
+		this.onData((data)=>{
+			this.socket.send(this.textEncoder.encode(0+data));
 		});
 
 		this.onResize((data)=>{
-			this.socket.send(this.textEncoder.encode(1+JSON.stringify(data)))
+			this.socket.send(this.textEncoder.encode(1+JSON.stringify(data)));
 		});
 	}
 
@@ -64,8 +66,13 @@ class CLTerminalWs extends CLTerminal{
 				// 0 term line
 				// 1 term title
 				// 2 term options object
-			if(messageType === "0") return this.write(body)
-
+			if(messageType === "0"){
+				if(!this.isReady){
+					this.isReady = true;
+					this.onReady()
+				}
+				return this.write(body)
+			}
 
 			// todo... do something with #2
 		}

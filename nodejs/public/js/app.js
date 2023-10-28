@@ -292,7 +292,6 @@ app.codeland = (function(app){
 
 	function getRunner(){
 		let runnerObj = localStorage.getItem('lastRunner') || '{}';
-		console.log(runnerObj);
 		try{
 			return JSON.parse(runnerObj);
 		}catch(error){
@@ -337,7 +336,10 @@ app.codeland = (function(app){
 			runner = getRunner().name;
 		}
 
-		app.api.delete(`runner/${runner}`, callback);
+		app.api.delete(`runner/${runner}`, function(error, data){
+			setRunner({});
+			callback(error, data);
+		});
 	}	
 
 	function persistentRun(code, callback){

@@ -83,10 +83,16 @@ const interpreters = {
     "ruby": "echo \"${code_in_base64}\" | base64 --decode | ruby",
     "typescript": "echo \"${code_in_base64}\" | base64 --decode | ts-node",
     "csharp": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.cs; mcs /tmp/code.cs -out:/tmp/code.exe; mono /tmp/code.exe",
-
     "swift": "echo \"${code_in_base64}\" | base64 --decode | swift",
+    "r": "echo \"${code_in_base64}\" | base64 --decode | R --no-save",
+    "scala": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.scala; scala -i /tmp/code.scala",
+    "haskell": "echo \"${code_in_base64}\" | base64 --decode | runhaskell",
+    "groovy": "export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64; echo \"${code_in_base64}\" | base64 --decode > /tmp/code.groovy; groovy -d /tmp/code.groovy",
+	
+    /*To add*/
 
-
+	/* I cant get solidity to work, todo... */
+    "fortran": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.f; gfortran -o /tmp/code /tmp/code.f && ./tmp/code",
     "solidity": "echo \"${code_in_base64}\" | base64 --decode > /tmp/main.sol; solc --allow-paths /usr/bin/ --assemble --overwrite /tmp/main.sol",
 }
 
@@ -124,9 +130,9 @@ function parseHash(){
 */
 
 // Helper function to update drop down menus
-function updateDropDown(value, $elelemt){
+function updateDropDown(value, $elememt){
 	let text;
-	$elelemt.find('a.dropdown-item').each(function(index){
+	$elememt.find('a.dropdown-item').each(function(index){
 		let $this = $(this)
 		if($this.attr('value') === value){
 			$this.addClass('active');
@@ -136,14 +142,13 @@ function updateDropDown(value, $elelemt){
 		}
 	});
 
-	$($elelemt.find('button.dropdown-toggle')[0]).html(text)
+	$($elememt.find('button.dropdown-toggle')[0]).html(text)
 
 	return !!text;
 }
 
 function updateKeybpard(keyboard, appendURL=true){
 	if(updateDropDown(keyboard, $codelandKeyboardSelect)){
-	console.log('here')
 		editor.setKeyboardHandler(`ace/keyboard/${keyboard}`);
 		if(appendURL) updateURL('keyboard', keyboard);
 	}
@@ -169,8 +174,8 @@ function setCode(code){
 	updateURL('code', code)
 }
 
-function buildAce(elelemt){
-	editor = ace.edit(elelemt);
+function buildAce(elememt){
+	editor = ace.edit(elememt);
 	// ace.require('ace/ext/settings_menu').init(editor);
 	ace.require("ace/ext/language_tools");
 	// editor.$blockScrolling = Infinity;
@@ -188,6 +193,34 @@ function buildAce(elelemt){
 	return editor;
 }
 
+function startTtyTerminal($element){
+	app.util.actionMessage(
+		`Loading terminal from remote runenr`,
+		$element,
+		'warning',
+	);
+
+	app.codeland.persistentRun('ttyd -W bash > ~/.TTYD 2>&1 & echo "done"', (err, data)=>{
+		if(err){
+			let message = (data && data.message) || err.message || err;
+			return app.util.actionMessage(
+				`Failed with: <b>${message}</b><br/> Refreshing may clear the error...`,
+				$element,
+				'danger',
+			);
+		}
+
+		termTTY = new CLTerminalWs(
+			$element.get(0),
+			`wss://7681.${data.domain}/ws`,
+			function(){
+				// Clear aurrent actions message
+				app.util.actionMessage(``, $element);
+			},
+		);
+	});
+}
+
 $(document).ready(function(){
 	/*
 		Cache common DOM elements
@@ -202,17 +235,8 @@ $(document).ready(function(){
 	/*
 		Create instances that need the DOM ready
 	*/
-	app.codeland.persistentRun('ttyd -W bash > ~/.TTYD 2>&1 & echo "done"', (err, data)=>{
-		if(err){
-			let message = (data && data.message) || err.message || err;
-			return app.util.actionMessage(
-				`Failed with: <b>${message}</b><br/> Refreshing may clear the error...`,
-				$('#codeland-tty'),
-				'danger',
-			);
-		}
-		termTTY = new CLTerminalWs(document.getElementById('codeland-tty'), `wss://7681.${app.codeland.getRunner().domain}/ws`)
-	});
+
+	startTtyTerminal($('#codeland-tty'))
 	
 	resultsTerm = new CLTerminal(document.getElementById('codeland-results'));
 	editor = buildAce($editor[0]);
@@ -245,7 +269,6 @@ $(document).ready(function(){
 			$spinner.hide()
 			
 			if(err){
-				console.log(err, data)
 				let message = (data && data.message) || err.message || err;
 				app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
 				return;
@@ -281,7 +304,21 @@ $(document).ready(function(){
 		});
 	})
 
+	$('#runnerRecycle').on('click', function(event){
+		app.util.actionMessage(
+			`Getting new runner...`,
+			$('#codeland-tty'),
+			'warning',
+		);
+		if(termTTY) try{
+			// https://github.com/xtermjs/xterm.js/issues/4757
+			termTTY.dispose();
+		}catch(error){}
 
+		app.codeland.kill(function(){
+			startTtyTerminal($('#codeland-tty'));
+		});
+	});
 
 	$('button.codeland-GUI').on('click', function(event){
 		codelandGUIonResult = !codelandGUIonResult
@@ -395,11 +432,36 @@ $(document).ready(function(){
 									Ruby
 								</a>
 
+								<a class="dropdown-item" value="r">
+									<img src="/static/svg/r.svg" height="16px"/>
+									R
+								</a>
+
 								<hr style="margin: 0;" />
 
 								<a class="dropdown-item" value="java">
 									<img src="/static/svg/java.svg" height="16px"/>
 									Java
+								</a>
+
+								<a class="dropdown-item" value="scala">
+									<img src="/static/svg/scala.svg" height="16px"/>
+									Scala
+								</a>
+
+								<a class="dropdown-item" value="haskell">
+									<img src="/static/svg/haskell.svg" height="16px"/>
+									Haskell
+								</a>
+
+								<a class="dropdown-item" value="groovy">
+									<img src="/static/svg/groovy.svg" height="16px"/>
+									Groovy
+								</a>
+
+								<a class="dropdown-item disabled" value="fortran">
+									<img src="/static/svg/fortran.svg" height="16px"/>
+									Fortran
 								</a>
 
 								<a class="dropdown-item" value="csharp">
@@ -455,7 +517,7 @@ $(document).ready(function(){
 
 					<button id="execute" class="btn btn-outline-success btn-sm clodelandSettings">
 						<i class="fa-solid fa-play"></i>
-						Run!
+						Run
 					</button>
 				</div>
 				
@@ -496,6 +558,9 @@ $(document).ready(function(){
 
 
 					<div class=" dropdown dropleft results-buttons d-inline">
+						<button id="runnerRecycle" class="btn btn-outline-warning btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Get a new runner">
+							<i class="fa-solid fa-recycle"></i>
+						</button>
 						<button id="runnerInfo" class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
 							<i class="fa-solid fa-circle-info"></i>
 						</button>
