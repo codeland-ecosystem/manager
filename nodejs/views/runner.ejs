@@ -322,9 +322,10 @@ $(document).ready(function(){
 
 	$('button.codeland-GUI').on('click', function(event){
 		codelandGUIonResult = !codelandGUIonResult
-		$('.codeland-GUI').toggle();
+		$('.codeland-GUI').toggle(function(){
 			termTTY.fit()
 			resultsTerm.fit()
+		});
 	});
 
 	/*

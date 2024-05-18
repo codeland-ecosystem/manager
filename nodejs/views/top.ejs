@@ -52,21 +52,28 @@
 						</a>
 		      </li>
 		    </ul>
-		    <form class="form-inline mt-2 mt-md-0">
-				<button class="btn btn-outline-danger my-2 my-sm-0" onclick="app.auth.logOut(e => window.location.href='/')">
+		    <div class="form-inline mt-2 mt-md-0">
+		    <!-- Show the login/logout button -->
+		    <a id="cl-login-button" class="btn btn-outline-danger my-2 my-sm-0" onclick="app.auth.forceLogin()" style="display: none;">
+		    	<i class="fas fa-sign-out"></i>
+		    	Login
+		    </a>
+
+				<button id="cl-logout-button" class="btn btn-outline-danger my-2 my-sm-0" onclick="app.auth.logOut(e => window.location.href='/')" style="display: none;">
 					<i class="fas fa-sign-out"></i>
 					Log Out
 				</button>
 
 <!-- 		      <input class="form-control mr-sm-2" type="text" placeholder="Search" aria-label="Search">
 		      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button> -->
-		    </form>
+		    </div>
 		  </div>
 		</nav>
 		<script type="text/javascript">
 			$(document).ready(function(){
 				// window.location.pathname.toLocaleLowerCase()
 
+				// Set the correct link to active in the top nav bar
 				$('.top-nav a').each(function(index){
 					let $this = $(this);
 					$this.removeClass('active');
@@ -74,6 +81,13 @@
 						$this.addClass('active')
 					}
 				})
+
+				// Set the correct login/logout button
+				app.auth.isLoggedIn(function(error, data){
+					if(data) $('#cl-logout-button').show();
+					else $('#cl-login-button').show();
+				});
+
 			});
 		</script>
 

@@ -1,3 +1,9 @@
+/*
+Author William Mantly Jr <wmantly@gmail.com>
+https://github.com/wmantly/jq-repeat
+MIT license
+*/
+
 (function($, Mustache){
 'use strict';
 	if (!$.scope) {
