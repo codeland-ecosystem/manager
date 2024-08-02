@@ -109,7 +109,7 @@ MIT license
 			//set and return new array
 			return Array.prototype.splice.apply(this, toProto);
 		};
-		
+
 		result.push = function(){
 			//add one or more objects to the array
 
@@ -172,6 +172,8 @@ MIT license
 		};
 
 		result.indexOf =  function( key, value ){
+			if(typeof key === 'number') return key;
+			
 			if( typeof value !== 'string' ){
 				value = arguments[0];
 				key = this.__index;
