@@ -13,11 +13,13 @@ class Local{
 	}
 
 	async memory(){
-		let res = (await this.exec("head /proc/meminfo")).stdout;
+		let res = (await this.exec("head /proc/meminfo"));
 		let memory = {};
 		let byteMultiplier = {'': 0, kb: 1024, mb:1000000};
 
-		for(let line of res.split('\n')){
+		if(!res.stdout) throw new Error('NoMemmoryInfoRetunred');
+
+		for(let line of res.stdout.split('\n')){
 			if(!line) continue;
 			line = line.split(/[: \t]+/)
 			line[0] = line[0].replace(/^Mem/, '')
@@ -30,9 +32,6 @@ class Local{
 		memory.percentUsed =(memory.used/memory.total)*100;
 		memory.percentFree =((memory.free)/memory.total)*100;
 		memory.percentAvailable =((memory.available)/memory.total)*100;
-
-		console.lo
-
 		return memory;
 	}
 

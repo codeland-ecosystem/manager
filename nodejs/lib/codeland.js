@@ -92,7 +92,7 @@ class CodeLandWorker{
 		let data = {
 			cooking: this.runnersCooking,
 			...(typeof message === 'object' ? message : {message: message}),
-			count: this.runnerCount,
+			count: this.listAvailableRunners().length,
 		}
 
 		this.ovenStatus = {
@@ -167,10 +167,6 @@ class CodeLandWorker{
 		}
 	}
 
-	get runnerCount(){
-		return Object.keys(this.__runners).length;
-	}
-
 	/*
 		getCurrentCopies and deleteUntracedRunners clean up zombie runners from
 		old instances of Codeland
@@ -225,7 +221,6 @@ class CodeLandWorker{
 			runner.statusHistory = [];
 			runner.domain = `${runner.name}.${this.domain}`;
 
-
 			let tryCount = 0;
 			let runnerInfo = {};
 
@@ -258,38 +253,40 @@ class CodeLandWorker{
 
 		In order to speed up creation, several runners are created at once. 
 	*/
-	async runnerOven(selfManagerDelay){
+	async runnerOven(srelfManagerDelay){
 		while(true){
-			// Get the current system memory
-			let memory = await this.ssh.memory();
-
-			// Test conditions to see of we need more runners
-			if(this.runnersCooking > this.minAvailableRunners){
-				this.__ovenSetStatus('full', 'To many runners cooking, sleeping')
-
-				await sleep(3000)
-				continue;
-			}else if(this.minAvailableRunners > Object.keys(this.__runners).length){
-				var ovenSize = this.minAvailableRunners - Object.keys(this.__runners).length
-					 
-				this.__ovenSetStatus('cooking', {
-					message: `min runner count not met, oven size ${ovenSize}`,
-					cooking: ovenSize,
-				})
-			}else if(memory.percentUsed < this.memTarget) {
-				var ovenSize = Math.floor(this.minAvailableRunners/2);
-					ovenSize = (ovenSize%3)+1
-
-				this.__ovenSetStatus('cooking', {
-					message: 'memory not met',
-					cooking: ovenSize,
-				})
-			}else{
-				this.__ovenSetStatus('off', 'Nothing to cook, all conditions met')
-				if(!selfManagerDelay) break;
-				await sleep(selfManagerDelay*1000)
-			}
 			try{
+				this.__ovenSetStatus('off', 'Starting oven check...')
+				// Get the current system memory
+				let memory = await this.ssh.memory();
+				let availableRunners = this.listAvailableRunners();
+				// Test conditions to see of we need more runners
+				if(this.runnersCooking > this.minAvailableRunners){
+					this.__ovenSetStatus('full', 'To many runners cooking, sleeping')
+
+					await sleep(3000)
+					continue;
+				}else if(this.minAvailableRunners > availableRunners.length){
+					var ovenSize = this.minAvailableRunners - availableRunners.length
+						 
+					this.__ovenSetStatus('cooking', {
+						message: `min runner count not met, oven size ${ovenSize}`,
+						cooking: ovenSize,
+					})
+				}else if(memory.percentUsed < this.memTarget) {
+					var ovenSize = Math.floor(this.minAvailableRunners/2);
+						ovenSize = (ovenSize%3)+1
+
+					this.__ovenSetStatus('cooking', {
+						message: 'memory not met',
+						cooking: ovenSize,
+					})
+				}else{
+					this.__ovenSetStatus('off', 'Nothing to cook, all conditions met')
+					await sleep(3000)
+					continue;
+				}
+
 				let ovenErrors = 0;
 				let newRunners = 0;
 				for await(const [error, runner] of whenReady(this.runnerMake.bind(this), ovenSize, 2000)){
@@ -307,6 +304,7 @@ class CodeLandWorker{
 			}catch(error){
 				this.__ovenSetStatus('fatal', {error});
 			}
+			console.log('here')
 			await sleep(3000)
 		}
 	}
@@ -330,9 +328,19 @@ class CodeLandWorker{
 		}catch(error){
 			this.__runnerSetStatus(name, 'free:error', {error})
 		}
-		this.__runnerSetStatus(name, 'free:success')
+		this.__runnerSetStatus(name, 'free:success');
+	}
 
-		if(callOven) this.runnerOven(false);
+	listAvailableRunners(){
+		let runners = [];
+
+		for(let [name, runner] of Object.entries(this.__runners)){
+			if(runner.lastStatus.status == 'available'){
+				runners.push(runner);
+			}
+		}
+
+		return runners;
 	}
 
 	/*
