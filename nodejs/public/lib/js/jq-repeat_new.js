@@ -132,12 +132,16 @@ MIT license
 		};
 
 		result.reverse = function() {
-			var temp = this.splice( 0 );
-			Array.prototype.reverse.apply( temp );
-
-			for( var i = 0; i < temp.length; i++ ){
-				this.push( temp[i] );
+			let hold = [];
+			for(let item of this){
+				hold.push(item.__jq_$el.html())
 			}
+
+			for(let idx in hold.reverse()){
+				this[idx].__jq_$el.html(hold[idx]);
+			}
+
+			Array.prototype.reverse.apply( this );
 
 			return this;
 		};
@@ -187,7 +191,7 @@ MIT license
 			return -1;
 		};
 
-		result.update = function( key, value, update ){
+		result.update = function(key, value, data){
 			//set variables using sting for index
 
 			// If update is called with no index/key, assume its the 0
@@ -198,16 +202,20 @@ MIT license
 				return this.splice(0, 1, key);
 			}
 
-			if( typeof value !== 'string' ){
-				update = arguments[1];
-				value = arguments[0];
-				key = this.__index;
+			if(typeof value !== 'string'){
+				data = arguments[1];
+				if(typeof key !== 'number'){
+					value = arguments[0];
+					key = this.__index;
+				}
 			}
+
 			var index = this.indexOf( key, value );
+
 			if(index === -1) {
 				return [];
 			}
-			var object = $.extend( true, {}, this[index], update );
+			var object = $.extend( true, {}, this[index], data );
  
 			var $render = $(Mustache.render(this.__jqTemplate, object));
 			$render.attr('jq-repeat-index', index);
