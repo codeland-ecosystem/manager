@@ -253,7 +253,6 @@ MIT license
 		};
 
 		result.__setTake = function(fn) {
-			delete this.__take;
 			Object.defineProperty(this, '__take', {
 				value: fn,
 				writable: true,
@@ -284,9 +283,9 @@ MIT license
 		for(let key in result){
 			Object.defineProperty(result, key, {
 				value: result[key],
-				writable: false,
+				writable: true,
 				enumerable: false,
-				configurable: false
+				configurable: true
 			});
 		}
 
