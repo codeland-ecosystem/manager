@@ -10,7 +10,7 @@ MIT license
 		$.scope = {};
 	}
 	
-	var make = function( element ){
+	var make = function(element){
 		var result = [];
 
 		result.splice = function(inputValue, ...args){
@@ -20,9 +20,9 @@ MIT license
 
 			var index;
 			//if a string is submitted as the index, try to match it to index number
-			if( typeof arguments[0] === 'string' ){
+			if(typeof arguments[0] === 'string'){
 				index = this.indexOf( arguments[0] );//set where to start
-				if ( index === -1 ) {
+				if (index === -1) {
 					return [];
 				}
 			}else{
@@ -215,14 +215,15 @@ MIT license
 			if(index === -1) {
 				return [];
 			}
-			var object = $.extend( true, {}, this[index], data );
- 
-			var $render = $(Mustache.render(this.__jqTemplate, object));
-			$render.attr('jq-repeat-index', index);
-			this[index].__jq_$el.replaceWith($render);
+			this[index] = $.extend( true, this[index], data );
+ 			
+ 			console.log('this', this[index])
 
+			var $render = $(Mustache.render(this.__jqTemplate, this[index]));
+			$render.attr('jq-repeat-index', index);
+
+			this.__update(this[index].__jq_$el, $render, this[index], this);
 			this[index].__jq_$el = $render;
-			this.__update(this[index].__jq_$el, this[index], this);
 		};
 		
 		result.getByKey = function(key, value){
@@ -237,8 +238,8 @@ MIT license
 			$el.remove();
 		};
 
-		result.__update = function($el, item, list){
-			console.log('here', $el)
+		result.__update = function($el, $render, item, list){
+			$el.replaceWith($render);
 			$el.show();
 		};
 
@@ -252,6 +253,7 @@ MIT license
 		};
 
 		result.__setTake = function(fn) {
+			delete this.__take;
 			Object.defineProperty(this, '__take', {
 				value: fn,
 				writable: true,
@@ -282,9 +284,9 @@ MIT license
 		for(let key in result){
 			Object.defineProperty(result, key, {
 				value: result[key],
-				writable: true,
+				writable: false,
 				enumerable: false,
-				configurable: true
+				configurable: false
 			});
 		}
 
