@@ -110,8 +110,6 @@ class CodeLandWorker{
 		instances.
 	*/
 	async init(){
-
-
 		this.runnerTemplate = await LXC.get({
 			name: this.runnerTemplate,
 			execInstance: this.ssh
@@ -129,7 +127,6 @@ class CodeLandWorker{
 			environment: conf.environment,
 		}), 1000)
 		
-
 		return this;
 	}
 
@@ -168,12 +165,13 @@ class CodeLandWorker{
 	}
 
 	/*
-		getCurrentCopies and deleteUntracedRunners clean up zombie runners from
+		getCurrentCopies and deleteUntrackedRunners clean up zombie runners from
 		old instances of Codeland
 	*/
 	async getCurrentCopies(){
 		let containers = await this.runnerTemplate.list();
 		let runners = {};
+
 		for(let container of containers){
 			if(container.name.startsWith(this.runnerPrefix ) ){
 				if(container.name === this.runnerTemplate) continue;
@@ -187,7 +185,7 @@ class CodeLandWorker{
 		return runners;
 	}
 
-	async deleteUntracedRunners(){
+	async deleteUntrackedRunners(){
 		for(let [name, runner] of Object.entries(await this.getCurrentCopies())){
 			if(!this.__runners[name]){
 				(async ()=>{
@@ -455,7 +453,7 @@ if (require.main === module){(async function(){try{
 
 	// await clworker.ssh.exec('bash ~/clean_crunners.sh');
 
-	// await clworker.deleteUntracedRunners();
+	// await clworker.deleteUntrackedRunners();
 	await clworker.runnerOven();
 	
 	console.log('mem info:', await clworker.memory())

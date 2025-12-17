@@ -42,7 +42,7 @@ const clworker = new CodelandController({ssh, ...conf.clworker});
       clworker.__log('memory', await clworker.ssh.memory())
     }catch{}
   }, 2000, clworker)
-  await clworker.deleteUntracedRunners();
+  await clworker.deleteUntrackedRunners();
   await clworker.runnerOven(10*1000);
 
   clworker.__log('df', (await clworker.ssh.df())['/'])

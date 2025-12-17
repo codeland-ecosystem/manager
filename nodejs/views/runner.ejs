@@ -212,7 +212,7 @@ function startTtyTerminal($element){
 
 		termTTY = new CLTerminalWs(
 			$element.get(0),
-			`wss://7681.${data.domain}/ws`,
+			`wss://7681_${data.domain}/ws`,
 			function(){
 				// Clear aurrent actions message
 				app.util.actionMessage(``, $element);
