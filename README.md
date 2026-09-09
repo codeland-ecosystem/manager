@@ -81,26 +81,50 @@ Before you begin, ensure you have met the following requirements:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/codeland-runner-system.git
-   cd codeland-runner-system
+   git clone https://github.com/codeland-ecosystem/manager.git
+   cd manager
    ```
 
 2. Install project dependencies:
 
    ```bash
+   cd nodejs
    npm install
    ```
 
+3. Configure `nodejs/conf/{development,production}.js` (SSH host, worker
+   settings) and run:
+
+   ```bash
+   npm start
+   ```
+
+## Runner Types
+
+The system manages three kinds of runners, all LXC containers cloned from a
+`crunner0` base template (Debian 13):
+
+- **One-shot** — created, executed once, then destroyed. Use `POST /runner/run`.
+- **Pooled** — the worker keeps a pre-warmed pool of idle runners that are
+  handed out on demand and returned when done. Use `POST /runner/new`.
+- **Persistent** — long-lived runners whose writable layer lives on shared
+  NFS, so they survive restarts and can migrate between workers. Use
+  `POST /runner/persistent`.
+
 ## API Documentation
 
-The API documentation provides details on available endpoints, parameters, and
-responses. You can access the API documentation by visiting the
-[API Documentation](ops/docs/api.md) file.
+Full endpoint reference is in [ops/docs/api.md](ops/docs/api.md). Quick
+examples:
 
-### Persistent Runners
+Execute a one-shot snippet:
 
-Persistent runners keep their writable layer on shared NFS so they survive
-restarts and can move between workers. Create one with:
+```bash
+curl -X POST /api/v1/runner/run \
+  -H 'Content-Type: application/json' \
+  -d '{"code": "console.log(\"hi\")"}'
+```
+
+Create a persistent runner:
 
 ```bash
 curl -X POST /api/v1/runner/persistent \
@@ -130,17 +154,18 @@ curl -X POST /api/v1/runner/my-runner/migrate \
   -d '{"worker": "192.168.1.196"}'
 ```
 
-List the registry:
+List the persistent-runner registry:
 
 ```bash
 curl /api/v1/runner/registry
 ```
 
-### Multi-worker setup
+## Multi-worker setup
 
 Add additional worker hosts to `conf.workers` (the primary worker is always
 `conf.ssh.host`). Each worker must mount the same NFS export at `/nfs/runners`
-and have the runner host scripts installed (see the runner-setup repo).
+and have the runner host scripts installed (see the
+[runner-setup](https://github.com/codeland-ecosystem/runner-setup) repo).
 
 ## Contributing
 

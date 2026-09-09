@@ -2,195 +2,206 @@
 
 ## Overview
 
-The CodeLand API allows you to manage and execute code on remote runners. This 
-documentation outlines the available API endpoints and their functionality.
+The CodeLand API manages and executes code on remote LXC runner containers.
+It provides three runner lifecycles:
 
-This document was generated with chatPT.
+- **One-shot** (`/run`) — create, execute once, destroy.
+- **Pooled** (`/new`) — reuse a runner from the worker's pre-warmed pool.
+- **Persistent** (`/persistent`) — long-lived runners whose writable layer
+  lives on shared NFS and can move between workers.
 
 ## Base URL
 
-The base URL for all API endpoints is `/api/v1/runner`.
+All endpoints live under `/api/v1`.
 
-## Routes
+- Runner endpoints: `/api/v1/runner`
+- Worker endpoints: `/api/v1/worker`
 
-### Execute Code Once on a trow-away Runner
+## Runner routes
+
+### List Runners
+
+- **GET `/api/v1/runner`**
+
+  List the runners currently tracked by the primary worker.
+
+  **Query Parameters:**
+  - `detail` (boolean, optional): include detailed per-runner info (slow).
+
+  **Response:**
+  - `runners` (array): `{ name, domain, lastStatus }` per runner, plus
+    `statusHistory` and LXC info when `detail` is set.
+
+### Execute Code Once on a Throw-away Runner
 
 - **POST `/api/v1/runner/run`**
 
-  Execute a code snippet once on a runner. Once the code is done executing, the
-  runner will be destroyed for ever!
+  Execute a code snippet once on a fresh runner, then destroy it.
 
   **Request Body:**
-  - `code` (string): The code snippet to execute.
+  - `code` (string): the code to execute.
 
-  **Query Parameters:**
-  - `time` (integer, optional): Maximum execution time in seconds (default is 60 seconds).
+  **Query / Body Parameters:**
+  - `time` (integer, optional): max execution time in seconds (default 60).
+  - `memLimit` (string|int, optional): per-runner memory limit (e.g. `"512M"`).
 
   **Response:**
-  - `res` (string): The result of the code execution in base64 format.
-
-  **Error Codes:**
-  - 503: RunnerNotAvailable - No fresh runners are available at this time.
-  - 498: runnerTimedOut - The execution time exceeded the specified timeout.
-  - 400: runnerExecutionFailed - Execution on the runner failed for unknown reasons.
-
-  This route allows you to execute code quickly on a runner without reusing the runner for subsequent requests. The runner is destroyed after execution to ensure a fresh runner for each request.
+  - `res` (string): base64-encoded output.
+  - `runner` (string): the runner that executed it.
+  - `duration` (int): execution time in ms.
 
   **Sample Request:**
   ```json
-  {
-    "code": "console.log('Hello, CodeLand!');"
-  }
+  { "code": "console.log('Hello, CodeLand!')" }
   ```
 
   **Sample Response:**
   ```json
   {
+    "runner": "crunner0-production-34586",
+    "domain": "crunner0-production-34586.cl-worker.example",
+    "duration": 167,
     "res": "SGVsbG8sIENvZGVMYW5kIQ=="
   }
   ```
 
-### Create a New Runner
+### Execute on a New (Pooled) Runner
 
 - **POST `/api/v1/runner/new`**
 
-  Create a new runner persistent runner. 
+  Pop a runner from the pool and execute code on it. The runner is NOT
+  destroyed (unlike `/run`); it returns to the pool.
 
   **Request Body:**
-  - `code` (string): Initial code to execute on the new runner.
+  - `code` (string): the code to execute.
+  - `memLimit` (string|int, optional): override the runner memory limit.
+
+  **Response:** same shape as `/run`.
+
+### Create a Persistent Runner
+
+- **POST `/api/v1/runner/persistent`**
+
+  Create a long-lived runner whose writable layer is stored on shared NFS, so
+  it survives restarts and can move between workers.
+
+  **Request Body:**
+  - `name` (string): the runner name (registry key).
+  - `memLimit` (string|int, optional).
+  - `worker` (string, optional): host to create on; defaults to the primary
+    worker (`conf.ssh.host`).
 
   **Response:**
-  - `res` (string): The result of the initial code execution in base64 format.
-  - `runner` (string): The name of the new runner.
+  - `runner` (string): the created runner name.
+  - `domain` (string).
+  - `worker` (string): the host it was created on.
 
-  **Error Codes:**
-  - 503: RunnerNotAvailable - No fresh runners are available at this time.
+### Run Code on a Persistent Runner
 
-  **Sample Request:**
-  ```json
-  {
-    "code": "console.log('Initializing new runner');"
-  }
-  ```
+- **POST `/api/v1/runner/:runner/run`**
 
-  **Sample Response:**
-  ```json
-  {
-    "res": "SW5pdGlhbGl6aW5nIG5ldyBydW5uZXI=",
-    "runner": "runner-3"
-  }
-  ```
+  Execute code on a named persistent runner, routed to whatever worker
+  currently hosts it.
 
-### Retrieve Runner Information by Name
+  **Request Body:**
+  - `code` (string): the code to execute.
+
+  **Query Parameters:**
+  - `time` (integer, optional): max execution time in seconds.
+
+### Stop a Persistent Runner
+
+- **POST `/api/v1/runner/:runner/stop`**
+
+  Stop a persistent runner and unmount it, **keeping** its NFS state so it can
+  be restarted or migrated later.
+
+  **Response:** `{ "res": "stopped" }`
+
+### Migrate a Persistent Runner
+
+- **POST `/api/v1/runner/:runner/migrate`**
+
+  Move a persistent runner from its current worker to a target worker. Uses a
+  redis lock so only one worker mounts the runner's NFS delta0 at a time.
+
+  **Request Body:**
+  - `worker` (string): the destination host.
+
+  **Response:**
+  - `runner` (string)
+  - `worker` (string): the destination host.
+
+### Execute on a Specific Runner
+
+- **POST `/api/v1/runner/:runner`**
+
+  Execute code on a named runner currently tracked by the primary worker.
+
+  **Request Body:**
+  - `code` (string): the code to execute.
+
+### Get Runner Info by Name
 
 - **GET `/api/v1/runner/:runner`**
 
-  Retrieve information about a specific runner by name.
+  Return detail for a named runner tracked by the primary worker.
 
-  **Response:**
-  - Runner information.
-
-  **Error Codes:**
-  - 503: RunnerNotAvailable - No fresh runners are available at this time.
-  - 404: runnerNotFound - The requested runner does not exist.
-
-  **Sample Request:**
-  ```http
-  GET /api/v1/runner/runner-1
-  ```
-
-  **Sample Response:**
-  ```json
-  {
-    "name": "runner-1",
-    "state": "RUNNING",
-    "pid": "1172779",
-    "ip": "172.16.118.41",
-    "memory": "44.23 MiB",
-    "kmem": "8.36 MiB",
-    "link": "veth1001_8xz8",
-    "tx": "1.29 KiB",
-    "rx": "3.57 KiB",
-    "total": "4.86 KiB"
-  }
-  ```
+  **Response:** LXC `info()` fields plus `lastStatus`, `domain`,
+  `statusHistory`.
 
 ### Delete a Runner
 
 - **DELETE `/api/v1/runner/:runner`**
 
-  Delete a specific runner by name.
+  Free/destroy a named runner tracked by the primary worker.
+
+  **Response:** `{ "res": "success" }`
+
+### Persistent Runner Registry
+
+- **GET `/api/v1/runner/registry`
+
+  List the persistent-runner registry (ORM-backed, Redis).
 
   **Response:**
-  - `{ "res": "success" }`
+  - `runners` (array): registry entries `{ name, worker, type, status,
+    created_on, updated_on }`.
 
-  **Error Codes:**
-  - 503: RunnerNotAvailable - No fresh runners are available at this time.
-  - 404: runnerNotFound - The requested runner does not exist.
+## Worker routes
 
-  **Sample Request:**
-  ```http
-  DELETE /api/v1/runner/runner-3
-  ```
+### Worker Status
 
-  **Sample Response:**
-  ```json
-  {
-    "res": "success"
-  }
-  ```
+- **GET `/api/v1/worker`**
 
-### Retrieve list of all Runner Information
-
-- **GET `/api/v1/runner`**
-
-  Retrieve information about available runners.
-
-  **Query Parameters:**
-  - `detail` (boolean, optional): Include detailed information about each runner
-     (default is false). **This may take some time**
+  Return the primary worker's status, oven state, and resource usage.
 
   **Response:**
-  - `memory` (object): Memory information of the worker server.
-  - `runners` (array of objects): List of available runners with their names 
-    and usage status.
+  - `worker` (object): `{ location, user, userHasKey, startedAt, environment }`
+  - `oven` (object): cooking state and available-runner count.
+  - `memory` (object): host memory usage.
+  - `df` (object): root filesystem usage.
 
-  **Error Codes:**
-    This should always at lest return the information
+### List Zombie Runners
 
-  **Sample Request:**
-  ```http
-  GET /api/v1/runner
-  ```
+- **GET `/api/v1/worker/zombies`**
 
-  **Sample Response:**
-  ```json
-  {
-    "memory": {
-      "total": "4.86 KiB",
-      "available": "4.75 KiB",
-      "used": "0.11 KiB",
-      "percent": 2.27
-    },
-    "runners": [
-      {
-        "name": "runner-1",
-        "inUse": false,
-        "state": "RUNNING",
-        "pid": "1172779",
-        "ip": "172.16.118.41",
-        "memory": "44.23 MiB",
-        "kmem": "8.36 MiB",
-        "link": "veth1001_8xz8",
-        "tx": "1.29 KiB",
-        "rx": "3.57 KiB",
-        "total": "4.86 KiB"
-      },
-      {
-        "name": "runner-2",
-        "inUse": true
-      }
-    ]
-  }
-  ```
+  List untracked runner containers on the worker (leftovers from old
+  instances).
 
+### Clean Zombie Runners
+
+- **DELETE `/api/v1/worker/zombies`**
+
+  Trigger cleanup of untracked runner containers.
+
+## Common Errors
+
+| Code | Name | Meaning |
+|------|------|---------|
+| 400 | `runnerExecutionFailed` | Execution failed for unknown reasons |
+| 404 | `runnerNotFound` | The named runner does not exist |
+| 409 | `runnerBusy` | Runner is currently being migrated |
+| 498 | `runnerTimedOut` | Execution exceeded the timeout |
+| 502 | `workerBadGateway` | The worker proxy cannot reach the runner |
+| 503 | `RunnerNotAvailable` | No fresh runners available |
