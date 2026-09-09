@@ -2,10 +2,14 @@
 
 const { init } = require('@simpleworkjs/orm');
 const { Runner } = require('../models/runner');
+const { Token, AuthToken } = require('../models/token');
 
 /*
-	Initialize the ORM with this app's models. The Runner registry uses the
-	Redis adapter (model-redis), keyed off conf.redis.
+	Initialize the ORM with this app's models.
+
+	Backends:
+	  - Token / AuthToken  -> Sequelize/SQL (conf.database)
+	  - Runner (registry)  -> Redis (conf.redis)
 */
 const conf = require('../conf');
 
@@ -22,8 +26,9 @@ async function initOrm(){
 					redisConf: conf.redis.client || {},
 				},
 			},
+			database: conf.database,
 		},
-		models: [Runner],
+		models: [Runner, Token, AuthToken],
 	});
 
 	return models;

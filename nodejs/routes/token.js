@@ -1,20 +1,26 @@
 'use strict';
 
 const router = require('express').Router();
-const {AuthToken} = require('../models/auth');
-const {Token, InviteToken} = require('../models/token');
+const {initOrm} = require('../lib/orm');
 
-const tokens  = {
-	auth: AuthToken,
-	invite: InviteToken
+const tokens  = async () => {
+	const models = await initOrm();
+	return {
+		auth: models.AuthToken,
+		invite: models.Token,
+	}
 }
 
 router.get('/:name', async function(req, res, next){
 	try{
-		console.log(tokens, req.params.name)
+		const map = await tokens();
+		const model = map[req.params.name];
+		if(!model) throw new Error('unknown token type');
+
+		const results = await (req.query.detail ? model.list() : model.list());
 
 		return res.json({
-			results:  await tokens[req.params.name][req.query.detail ? "listDetail" : "list"]()
+			results: results.map(r => r.toJSON())
 		});
 	}catch(error){
 		next(error);
@@ -24,23 +30,16 @@ router.get('/:name', async function(req, res, next){
 
 router.get('/:name/:token', async function(req, res, next){
 	try{
-		return res.json({
-			results:  await tokens[req.params.name].get(req.params.token)
-		});
+		const map = await tokens();
+		const model = map[req.params.name];
+		if(!model) throw new Error('unknown token type');
+
+		const result = await model.get(req.params.token);
+		return res.json({results: result ? result.toJSON() : null});
 	}catch(error){
 		next(error);
 	}
 });
-
-// router.delete('/:username', async function(req, res, next){
-// 	try{
-// 		let user = await User.get(req.params.username);
-
-// 		return res.json({username: req.params.username, results: await user.remove()})
-// 	}catch(error){
-// 		next(error);
-// 	}
-// });
 
 module.exports = router;
 

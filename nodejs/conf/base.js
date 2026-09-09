@@ -14,6 +14,12 @@ module.exports = {
 	redis: {
 		prefix: 'cl-manager_'
 	},
+	// Sequelize/SQL database for ORM-backed models (tokens, etc.).
+	database: {
+		dialect: 'sqlite',
+		storage: __dirname + '/cl-manager.sqlite',
+		logging: false,
+	},
 	httpProxyAPI:{
 		host: 'http://10.2.0.51:3000',
 		key: '__IN SRECREST FILE__'

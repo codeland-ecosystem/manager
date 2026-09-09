@@ -1,7 +1,7 @@
 'use strict';
 
 const {User} = require('./user');
-const {Token, AuthToken} = require('./token');
+const {initOrm} = require('../lib/orm');
 
 var Auth = {}
 Auth.errors = {}
@@ -18,7 +18,8 @@ Auth.errors.login = function(){
 Auth.login = async function(data){
 	try{
 		let user = await User.login(data);
-		let token = await AuthToken.add(user);
+		const {AuthToken} = await initOrm();
+		let token = await AuthToken.create({created_by: user.uid || user.dn});
 
 		return {user, token}
 	}catch(error){
@@ -30,10 +31,13 @@ Auth.login = async function(data){
 
 Auth.checkToken = async function(data){
 	try{
-		let token = await AuthToken.get(data);
+		const {AuthToken} = await initOrm();
+		let token = await AuthToken.get(data.token);
+		if(!token) throw this.errors.login();
 		if(token.is_valid){
 			return await User.get(token.created_by);
 		}
+		throw this.errors.login();
 	}catch(error){
 		console.log('token error', data)
 		throw this.errors.login();
@@ -42,11 +46,12 @@ Auth.checkToken = async function(data){
 
 Auth.logOut = async function(data){
 	try{
-		let token = await AuthToken.get(data);
-		await token.remove();
+		const {AuthToken} = await initOrm();
+		let token = await AuthToken.get(data.token);
+		await token.delete();
 	}catch(error){
 		throw error;
 	}
 }
 
-module.exports = {Auth, AuthToken};
+module.exports = {Auth, AuthToken: require('../models/token').AuthToken};
