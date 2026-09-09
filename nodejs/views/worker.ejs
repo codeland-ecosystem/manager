@@ -111,6 +111,7 @@
 	$(document).ready(function(){
 		$.scope.runnerAvailable.__index = 'name';
 		$.scope.runnerInUse.__index = 'name';
+		$.scope.persistentRunners.__index = 'name';
 
 		//   // set up animation for adding to taks list
 		// $.scope.runnerAvailable.__put = function(){
@@ -251,6 +252,14 @@
 			)
 		});
 
+		// Load the persistent-runner registry.
+		app.codeland.listRegistry(function(err, data){
+			if(err) return console.log('registry error', err, data);
+			for(const r of (data.runners || [])){
+				$.scope.persistentRunners.push(r);
+			}
+		});
+
 		setInterval(()=>{
 			$('.momentUpdate').each((idx,el)=>{
 				try{
@@ -261,6 +270,36 @@
 		}, 30000, )
 
 	});
+
+	function createPersistent(){
+		let name = prompt('Runner name:');
+		if(!name) return;
+		let memLimit = prompt('Memory limit (e.g. 512M, 1G) [optional]:') || undefined;
+		app.util.actionMessage('Creating persistent runner...', $('#persistent-card .actionMessage'), 'warning');
+		app.codeland.makePersistent({name, memLimit}, function(err, data){
+			if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#persistent-card .actionMessage'), 'danger');
+			app.util.actionMessage('', $('#persistent-card .actionMessage'));
+			$.scope.persistentRunners.push({name: data.runner, worker: data.worker, status: 'running'});
+		});
+	}
+
+	function stopPersistent(name){
+		if(!confirm(`Stop persistent runner ${name}? (keeps NFS state)`)) return;
+		app.codeland.stopPersistent(name, function(err, data){
+			if(err) return alert((data&&data.message)||err);
+			$.scope.persistentRunners.update(name, {status: 'stopped'});
+		});
+	}
+
+	function migratePersistent(name){
+		let worker = prompt('Destination worker host:');
+		if(!worker) return;
+		app.codeland.migratePersistent(name, worker, function(err, data){
+			if(err) return alert((data&&data.message)||err);
+			$.scope.persistentRunners.update(name, {worker: data.worker});
+			alert(`Migrated ${name} to ${data.worker}`);
+		});
+	}
 </script>
 <div class="row" style="display:none">
 
@@ -394,7 +433,37 @@
 		</div>
 
 		<br />
-		
+
+		<div id="persistent-card" class="card shadow-lg">
+			<div class="card-header">
+				<i class="fa-solid fa-box-archive"></i>
+				Persistent Runners
+				<button class="btn btn-sm btn-outline-success float-right" onclick="createPersistent()">
+					<i class="fa-solid fa-plus"></i>
+				</button>
+			</div>
+			<div class="card-header actionMessage" style="display:none"></div>
+			<ul class="list-group list-group-flush">
+				<li id="runner-{{name}}" jq-repeat="persistentRunners" class="list-group-item" style="display:none">
+					<div class="d-flex w-100 justify-content-between">
+						<b>{{name}}</b>
+						<span class="badge badge-secondary">{{status}}</span>
+					</div>
+					<small>Worker: <b>{{worker}}</b></small>
+					<div class="btn-group btn-group-sm mt-1">
+						<button class="btn btn-outline-warning btn-sm" onclick="stopPersistent('{{name}}')" title="Stop">
+							<i class="fa-solid fa-stop"></i>
+						</button>
+						<button class="btn btn-outline-primary btn-sm" onclick="migratePersistent('{{name}}')" title="Migrate">
+							<i class="fa-solid fa-right-left"></i>
+						</button>
+					</div>
+				</li>
+			</ul>
+		</div>
+
+		<br />
+
 		<div class="card shadow-lg">
 			<div class="card-header">
 				<i class="fa-solid fa-clock-rotate-left"></i>
