@@ -347,14 +347,17 @@ class CodeLandWorker{
 				// Get the current system memory
 				let memory = await this.ssh.memory();
 				let availableRunners = this.listAvailableRunners();
-				// Test conditions to see of we need more runners
-				if(this.runnersCooking >= this.minAvailableRunners){
+				// Test conditions to see of we need more runners. Only cook the
+				// exact delta needed to reach minAvailableRunners, so we don't
+				// overshoot the standby target.
+				const needed = this.minAvailableRunners - availableRunners.length;
+				if(this.runnersCooking >= needed){
 					this.__ovenSetStatus('full', 'To many runners cooking, sleeping')
 
 					await sleep(3000)
 					continue;
-				}else if(this.minAvailableRunners > availableRunners.length){
-					var ovenSize = this.minAvailableRunners - availableRunners.length
+				}else if(needed > 0){
+					var ovenSize = needed
 						 
 					this.__ovenSetStatus('cooking', {
 						message: `min runner count not met, oven size ${ovenSize}`,
