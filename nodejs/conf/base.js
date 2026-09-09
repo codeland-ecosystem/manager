@@ -30,4 +30,7 @@ module.exports = {
 		domain: 'prod.718it.codeland.us',
 		memLimit: '512M',
 	},
+	// Additional worker hosts for persistent runner migration. The primary
+	// worker (conf.ssh.host) is always registered.
+	workers: [],
 };

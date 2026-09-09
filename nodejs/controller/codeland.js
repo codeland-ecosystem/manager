@@ -2,6 +2,7 @@
 
 const ps = require('./pubsub.js'); 
 const {Ssh, CodeLandWorker} = require('../lib/codeland');
+const {WorkerManager} = require('../lib/worker_manager');
 const conf = require('../conf')
 
 const ssh = new Ssh(conf.ssh);
@@ -34,6 +35,21 @@ class CodelandController extends CodeLandWorker{
 
 const clworker = new CodelandController({ssh, ...conf.clworker});
 
+// Multi-worker manager for persistent runners. Each worker host is registered
+// here so persistent runners can be routed and migrated between workers.
+const workerManager = new WorkerManager({
+  sshConfig: conf.ssh,
+  clworkerConfig: conf.clworker,
+});
+
+// Register the primary worker.
+workerManager.addWorker(conf.ssh.host);
+
+// Register any additional workers from config.
+for(const host of (conf.workers || [])){
+  workerManager.addWorker(host);
+}
+
 
 (async function(){
   await clworker.init();
@@ -51,18 +67,4 @@ const clworker = new CodelandController({ssh, ...conf.clworker});
 
 })()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-module.exports = {ssh, clworker};
+module.exports = {ssh, clworker, workerManager};

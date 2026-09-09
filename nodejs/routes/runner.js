@@ -1,7 +1,7 @@
 'use strict';
 
 const router = require('express').Router();
-const {clworker} = require('../controller/codeland');
+const {clworker, workerManager} = require('../controller/codeland');
 
 
 router.get('/', async(req, res, next)=>{
@@ -54,8 +54,9 @@ router.post('/new', async (req, res, next)=>{
 router.post('/persistent', async (req, res, next)=>{
   let runner;
   try{
-    runner = await clworker.runnerMakePersistent(req.body.name, req.body.memLimit);
-    return res.json({runner: runner.name, domain: runner.domain});
+    const host = req.body.worker || clworker.ssh.host;
+    runner = await workerManager.runnerMakePersistent(req.body.name, req.body.memLimit, host);
+    return res.json({runner: runner.name, domain: runner.domain, worker: host});
   }catch(error){
     if(runner && !error.runner) error.runner = runner;
     next(error)
@@ -63,13 +64,41 @@ router.post('/persistent', async (req, res, next)=>{
 });
 
 router.post('/:runner/stop', async (req, res, next)=>{
-  let runner;
   try{
-    runner = clworker.runnerGetByName(req.params.runner);
-    await clworker.runnerStopPersistent(runner);
+    await workerManager.runnerStopPersistent(req.params.runner);
     return res.json({res: 'stopped'});
   }catch(error){
-    if(runner && !error.runner) error.runner = runner;
+    next(error)
+  }
+});
+
+router.post('/:runner/migrate', async (req, res, next)=>{
+  try{
+    const target = req.body.worker;
+    if(!target) throw new Error('worker is required');
+    const runner = await workerManager.runnerMigrate(req.params.runner, target);
+    return res.json({runner: runner.name, worker: target});
+  }catch(error){
+    next(error)
+  }
+});
+
+router.post('/:runner/run', async (req, res, next)=>{
+  try{
+    const time = Number.isInteger(Number(req.query.time)) ? req.query.time : undefined;
+    const result = await workerManager.runnerRunPersistent(req.params.runner, req.body.code, time);
+    return res.json(result);
+  }catch(error){
+    next(error)
+  }
+});
+
+router.get('/registry', async (req, res, next)=>{
+  try{
+    const {Runner} = require('../models/runner');
+    const entries = await Runner.listDetail();
+    return res.json({runners: entries});
+  }catch(error){
     next(error)
   }
 });

@@ -105,14 +105,42 @@ restarts and can move between workers. Create one with:
 ```bash
 curl -X POST /api/v1/runner/persistent \
   -H 'Content-Type: application/json' \
-  -d '{"name": "my-runner", "memLimit": "1G"}'
+  -d '{"name": "my-runner", "memLimit": "1G", "worker": "192.168.1.150"}'
 ```
 
-Stop it (keeping its NFS state) with:
+Run code on it (routed to its current worker):
+
+```bash
+curl -X POST /api/v1/runner/my-runner/run \
+  -H 'Content-Type: application/json' \
+  -d '{"code": "console.log(\"hi\")"}'
+```
+
+Stop it (keeping its NFS state):
 
 ```bash
 curl -X POST /api/v1/runner/my-runner/stop
 ```
+
+Migrate it to another worker:
+
+```bash
+curl -X POST /api/v1/runner/my-runner/migrate \
+  -H 'Content-Type: application/json' \
+  -d '{"worker": "192.168.1.196"}'
+```
+
+List the registry:
+
+```bash
+curl /api/v1/runner/registry
+```
+
+### Multi-worker setup
+
+Add additional worker hosts to `conf.workers` (the primary worker is always
+`conf.ssh.host`). Each worker must mount the same NFS export at `/nfs/runners`
+and have the runner host scripts installed (see the runner-setup repo).
 
 ## Contributing
 
