@@ -16,7 +16,7 @@ module.exports = {
 		key: '__IN SRECREST FILE__'
 	},
 	ssh:{
-		host:'192.168.1.196',
+		host:'192.168.1.146',
 		user:'virt',
 		keyPath:'~/.ssh/id_rsa_cl-worker',
 	},
