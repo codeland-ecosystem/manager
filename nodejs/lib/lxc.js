@@ -62,6 +62,7 @@ class LXC{
 		this.name = args.name
 		this.execInstance = args.execInstance || this.constructor.execInstance;
 		this.ephemeralHack = args.ephemeralHack
+		this.persistent = args.persistent
 		this.base = args.base
 		this.memLimit = args.memLimit
 	}
@@ -185,6 +186,46 @@ class LXC{
 
 		}catch(error){
 			throw error
+		}
+	}
+
+	/*
+		Start a persistent runner. The writable layer lives on shared NFS so
+		the runner can move between workers. If the runner already exists on
+		this worker (e.g. after a move), it is started in place.
+	*/
+	async startPersistent(newName){
+		try{
+			let memLimit = this.memLimit ? this.constructor.parseMemLimit(this.memLimit) : '';
+			let res = await this.sysExec(
+				`~/.local/bin/lxc-start-persistent "${newName}" "${this.name}" "${memLimit}"`
+			);
+
+			return new LXC({
+				name: newName,
+				execInstance: this.execInstance,
+				base: this,
+				persistent: true,
+				memLimit: this.memLimit,
+			});
+
+		}catch(error){
+			throw error
+		}
+	}
+
+	/*
+		Stop a persistent runner, keeping its NFS state so it can be restarted
+		or moved to another worker.
+	*/
+	async stopPersistent(){
+		try{
+			await this.sysExec(
+				`~/.local/bin/lxc-stop-persistent "${this.name}"`
+			);
+			return true;
+		}catch(error){
+			throw error;
 		}
 	}
 

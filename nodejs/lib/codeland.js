@@ -256,6 +256,73 @@ class CodeLandWorker{
 	}
 
 	/*
+		Create a persistent runner. Unlike runnerMake, the writable layer is
+		stored on shared NFS so the runner survives restarts and can move
+		between workers. The runner is added to the tracked runners and marked
+		available.
+	*/
+	async runnerMakePersistent(name, memLimit){
+		name = name || this.runnerPrefix + (Math.random()*100).toString().slice(-5);
+		let runner;
+		try{
+			this.__runnerSetStatus(name, 'oven:cooking');
+			this.runnersCooking++
+			runner = await this.runnerTemplate.startPersistent(name);
+			runner.statusHistory = [];
+			runner.domain = `${runner.name}.${this.domain}`;
+
+			if(memLimit){
+				await runner.setMemLimit(memLimit);
+			}
+
+			let tryCount = 0;
+			let runnerInfo = {};
+
+			while(!runnerInfo.ip){
+				await sleep(1500);
+				runnerInfo = await runner.info();
+				if(tryCount++ === 10){ // give up
+					throw new Error('Timeout waiting on LXC IP');
+				}
+				if(runnerInfo.state !== "RUNNING") throw new Error('LXC failed to start')
+			}
+			this.__runnerSetStatus(runner, 'available',);
+
+			this.__runners[runner.name] = runner;
+
+			return runner;
+		}catch(error){
+			this.__runnerSetStatus(runner || name, 'oven:error',{error});
+			if(runner) runner.stopPersistent();
+			throw error;
+		}finally{
+			--this.runnersCooking
+		}
+	}
+
+	/*
+		Stop a persistent runner, keeping its NFS state. The runner is removed
+		from the tracked runners but can be restarted later.
+	*/
+	async runnerStopPersistent(runner){
+		let name = runner instanceof LXC ? runner.name : runner;
+		this.__runnerSetStatus(runner, 'stopped');
+
+		try{
+			if(this.__runners[name]){
+				delete this.__runners[name];
+			}
+			if(!(runner instanceof LXC)) throw new Error('runnerNotLXC');
+
+			await runner.stopPersistent();
+		}catch(error){
+			this.__runnerSetStatus(name, 'stop:error', {error});
+			throw error;
+		}
+		this.__runnerSetStatus(name, 'stopped:success');
+	}
+
+	/*
 		Auto populate the array of available runners. The percent of used memory
 		or the minimum required runners are used to decide if more need to be
 		created. Since runner creation is an async job, the number of in flight

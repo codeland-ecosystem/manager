@@ -51,6 +51,29 @@ router.post('/new', async (req, res, next)=>{
   }
 });
 
+router.post('/persistent', async (req, res, next)=>{
+  let runner;
+  try{
+    runner = await clworker.runnerMakePersistent(req.body.name, req.body.memLimit);
+    return res.json({runner: runner.name, domain: runner.domain});
+  }catch(error){
+    if(runner && !error.runner) error.runner = runner;
+    next(error)
+  }
+});
+
+router.post('/:runner/stop', async (req, res, next)=>{
+  let runner;
+  try{
+    runner = clworker.runnerGetByName(req.params.runner);
+    await clworker.runnerStopPersistent(runner);
+    return res.json({res: 'stopped'});
+  }catch(error){
+    if(runner && !error.runner) error.runner = runner;
+    next(error)
+  }
+});
+
 router.post('/:runner', async (req, res, next)=>{
   let runner;
   try{

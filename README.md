@@ -97,6 +97,22 @@ The API documentation provides details on available endpoints, parameters, and
 responses. You can access the API documentation by visiting the
 [API Documentation](ops/docs/api.md) file.
 
+### Persistent Runners
+
+Persistent runners keep their writable layer on shared NFS so they survive
+restarts and can move between workers. Create one with:
+
+```bash
+curl -X POST /api/v1/runner/persistent \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "my-runner", "memLimit": "1G"}'
+```
+
+Stop it (keeping its NFS state) with:
+
+```bash
+curl -X POST /api/v1/runner/my-runner/stop
+```
 
 ## Contributing
 
