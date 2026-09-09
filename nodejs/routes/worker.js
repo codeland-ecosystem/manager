@@ -41,4 +41,33 @@ router.delete('/zombies', (req, res, next)=>{
 	}
 })
 
+/*
+	Metrics endpoint: runner counts, oven state, and recent job history.
+*/
+router.get('/metrics', async (req, res, next)=>{
+	try{
+		const runners = Object.values(clworker.__runners);
+		const available = runners.filter(r => r.lastStatus && r.lastStatus.status === 'available').length;
+		const inUse = runners.filter(r => r.lastStatus && r.lastStatus.status === 'inUse').length;
+		const cooking = clworker.runnersCooking || 0;
+
+		res.json({
+			worker: clworker.ssh.host,
+			environment: conf.environment,
+			startedAt: clworker.startedAt.getTime(),
+			uptimeSeconds: Math.floor((Date.now() - clworker.startedAt.getTime()) / 1000),
+			runners: {
+				total: runners.length,
+				available,
+				inUse,
+				cooking,
+			},
+			oven: clworker.ovenStatus,
+			history: clworker.history || [],
+		});
+	}catch(error){
+		next(error);
+	}
+})
+
 module.exports = router;

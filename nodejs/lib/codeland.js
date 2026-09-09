@@ -513,6 +513,85 @@ class CodeLandWorker{
 	}
 
 	/*
+		Execute code on the remote runner and return a structured result with
+		stdout, stderr, and exit code separated. The crunner API merges stderr
+		into stdout and drops the exit code, so we wrap the code in a shell
+		command that captures them into a JSON blob.
+
+		`code` is the raw code to run. `bashLine` is the interpreter template
+		(with a ${code_in_base64} placeholder) that turns the code into a
+		command. If omitted, the code is run as a raw shell command.
+	*/
+	async runnerRunStructured(runner, code, time, bashLine){
+		const startTime = new Date();
+		try{
+			this.__runnerSetStatus(runner, 'execute');
+
+			// Build the command that runs the code and captures stdout, stderr,
+			// and exit code into a JSON blob on stdout.
+			let runCmd;
+			if(bashLine){
+				runCmd = bashLine.replace('${code_in_base64}', Buffer.from(code).toString('base64'));
+			}else{
+				runCmd = `echo ${Buffer.from(code).toString('base64')} | base64 --decode | bash`;
+			}
+
+			// Wrap: run the command, tee stdout/stderr to files, capture exit.
+			const wrapper = `
+				OUT=$(mktemp); ERR=$(mktemp);
+				{ ${runCmd}; } >"$OUT" 2>"$ERR";
+				EXIT=$?;
+				printf '{"stdout":"%s","stderr":"%s","exit":%d}' \\
+					"$(base64 -w0 <"$OUT")" "$(base64 -w0 <"$ERR")" "$EXIT";
+				rm -f "$OUT" "$ERR";
+			`;
+
+			let res = await axios.post(`http://${this.ssh.host}/`, {
+				code: wrapper
+			}, {
+				headers: {
+					Host: `1500_${runner.name}`
+				},
+				timeout: time ? time*1000 : undefined,
+			});
+
+			const endTime = new Date();
+			const duration = endTime - startTime
+
+			this.__runnerSetStatus(runner, 'complete', {duration});
+
+			// res.data.res is base64 of the wrapper's stdout (the JSON blob).
+			let parsed = {};
+			try{
+				parsed = JSON.parse(Buffer.from(res.data.res, 'base64').toString('utf8'));
+			}catch(e){
+				parsed = {stdout: res.data.res, stderr: '', exit: null};
+			}
+
+			return {
+				runner: runner.name,
+				domain: runner.domain,
+				duration,
+				stdout: parsed.stdout ? Buffer.from(parsed.stdout, 'base64').toString('utf8') : '',
+				stderr: parsed.stderr ? Buffer.from(parsed.stderr, 'base64').toString('utf8') : '',
+				exit: parsed.exit,
+			};
+
+		}catch(error){
+			if(error.code === 'ECONNABORTED'){
+				error = this.errors.runnerTimedOut(time, runner);
+			}
+			if(error.code === 'ERR_BAD_RESPONSE'){
+				error = this.errors.workerBadGateway();
+			}
+
+			this.__runnerSetStatus(runner, 'error', {error});
+
+			throw error;
+		}
+	}
+
+	/*
 		Execute code on new runner, then kill it.
 	*/
 	async runnerRunOnce(code, time=60, memLimit){
@@ -525,6 +604,25 @@ class CodeLandWorker{
 			let res = await this.runnerRun(runner, code, time);
 
 			return res;	
+		}catch(error){
+			throw error;
+		}finally{
+			if(runner) await this.runnerFree(runner);
+		}
+	}
+
+	/*
+		Execute code on a fresh runner with a structured result, then destroy
+		the runner. Accepts an optional bashLine (interpreter template).
+	*/
+	async runnerRunOnceStructured(code, time=60, memLimit, bashLine){
+		let runner;
+		try{
+			runner = await this.runnerPop();
+			if(memLimit){
+				await runner.setMemLimit(memLimit);
+			}
+			return await this.runnerRunStructured(runner, code, time, bashLine);
 		}catch(error){
 			throw error;
 		}finally{

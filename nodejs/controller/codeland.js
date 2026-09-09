@@ -10,12 +10,19 @@ const ssh = new Ssh(conf.ssh);
 class CodelandController extends CodeLandWorker{
   constructor(...args){
     super(...args)
+    // Ring buffer of recent job executions: {when, runner, duration, ok}.
+    this.history = [];
+    this.historyMax = 100;
   }
 
-  history = [];
-
-  historyAdd = function(add){
-
+  historyAdd(entry){
+    this.history.push({
+      when: new Date().getTime(),
+      ...entry,
+    });
+    if(this.history.length > this.historyMax){
+      this.history.splice(0, this.history.length - this.historyMax);
+    }
   }
 
   __log(topic, message){

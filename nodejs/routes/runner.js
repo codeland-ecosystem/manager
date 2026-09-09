@@ -33,8 +33,68 @@ router.post('/run', async (req, res, next)=>{
     let time = Number.isInteger(Number(req.query.time)) ? req.query.time : undefined;
     let memLimit = req.query.memLimit || req.body.memLimit;
     let result = await clworker.runnerRunOnce(req.body.code, time, memLimit);
+    clworker.historyAdd({runner: result.runner, duration: result.duration, ok: true});
     res.json(result);  
   }catch(error){
+    clworker.historyAdd({runner: error.runner && error.runner.name, ok: false, error: error.message});
+    next(error)
+  }
+});
+
+/*
+	Structured one-shot run. Accepts:
+	  - code (string, required)
+	  - language (string, optional): resolves to an interpreter bash_line
+	  - stdin (string, optional): piped to the process
+	  - files (array, optional): [{name, content}] written to /tmp before run
+	  - timeout (int, optional): seconds
+	  - memLimit (string|int, optional)
+	Returns { runner, domain, duration, stdout, stderr, exit }.
+*/
+router.post('/run/structured', async (req, res, next)=>{
+  try{
+    const {getBashLine} = require('../lib/interpreters');
+    const time = Number.isInteger(Number(req.body.timeout)) ? req.body.timeout : undefined;
+    const memLimit = req.body.memLimit;
+    const code = req.body.code;
+    if(typeof code !== 'string' || !code.length){
+      const e = new Error('code is required');
+      e.status = 400; throw e;
+    }
+
+    // Resolve the interpreter template.
+    let bashLine;
+    if(req.body.language){
+      bashLine = getBashLine(req.body.language);
+    }
+
+    // Build a preamble that writes any files and pipes stdin.
+    let preamble = '';
+    if(Array.isArray(req.body.files) && req.body.files.length){
+      for(const f of req.body.files){
+        if(!f || typeof f.name !== 'string' || typeof f.content !== 'string') continue;
+        const b64 = Buffer.from(f.content).toString('base64');
+        preamble += `echo ${b64} | base64 --decode > /tmp/${f.name}; `;
+      }
+    }
+    if(typeof req.body.stdin === 'string' && req.body.stdin.length){
+      const b64 = Buffer.from(req.body.stdin).toString('base64');
+      preamble += `echo ${b64} | base64 --decode | `;
+    }
+
+    // Combine preamble + interpreter line. If no language, run code as shell.
+    let fullBashLine;
+    if(bashLine){
+      fullBashLine = preamble + bashLine;
+    }else{
+      fullBashLine = preamble + `echo "${Buffer.from(code).toString('base64')}" | base64 --decode | bash`;
+    }
+
+    const result = await clworker.runnerRunOnceStructured(code, time, memLimit, fullBashLine);
+    clworker.historyAdd({runner: result.runner, duration: result.duration, ok: true, exit: result.exit});
+    res.json(result);
+  }catch(error){
+    clworker.historyAdd({runner: error.runner && error.runner.name, ok: false, error: error.message});
     next(error)
   }
 });
