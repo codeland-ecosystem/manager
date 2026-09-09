@@ -20,7 +20,7 @@ router.post('/login', async function(req, res, next){
 router.all('/logout', async function(req, res, next){
 	try{
 		if(req.user){
-			await req.user.logout();
+			await Auth.logOut({token: req.header('auth-token')});
 		}
 
 		res.json({message: 'Bye'})

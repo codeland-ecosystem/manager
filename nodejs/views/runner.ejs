@@ -212,12 +212,59 @@ function startTtyTerminal($element){
 
 		termTTY = new CLTerminalWs(
 			$element.get(0),
-			`wss://7681.${data.domain}/ws`,
+			`wss://7681_${data.domain}/ws`,
 			function(){
 				// Clear aurrent actions message
 				app.util.actionMessage(``, $element);
 			},
 		);
+	});
+}
+
+function loadPersistentRunners(){
+	app.codeland.listRegistry(function(err, data){
+		if(err) return console.log('registry error', err, data);
+		const $list = $('#persistentRunnerList');
+		$list.empty();
+		if(!data.runners || !data.runners.length){
+			$list.append('<div class="text-muted small">No persistent runners</div>');
+			return;
+		}
+		for(const r of data.runners){
+			let $el = $('<div class="d-flex justify-content-between align-items-center mb-1">' +
+				'<span class="small text-truncate" style="max-width: 150px" title="' + r.name + '">' + r.name + '</span>' +
+				'<button class="btn btn-outline-success btn-sm" onclick="runOnPersistent(\'' + r.name + '\')">' +
+				'<i class="fa-solid fa-play"></i></button>' +
+				'</div>');
+			$list.append($el);
+		}
+	});
+}
+
+function createPersistentRunner(){
+	let name = prompt('Persistent runner name:');
+	if(!name) return;
+	let memLimit = prompt('Memory limit (e.g. 512M, 1G) [optional]:') || undefined;
+	app.codeland.makePersistent({name, memLimit}, function(err, data){
+		if(err) return alert((data && data.message) || err);
+		alert('Created persistent runner: ' + data.runner + ' on ' + data.worker);
+		loadPersistentRunners();
+	});
+}
+
+function runOnPersistent(name){
+	resultsTerm.clear()
+	app.util.actionMessage(`Executing on persistent runner <b>${name}</b>...`, $('#codeland-results'), 'warning')
+	app.codeland.runPersistent(name, `export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
+		if(err){
+			let message = (data && data.message) || err.message || err;
+			app.util.actionMessage(`Persistent runner failed: <b>${message}</b>`, $('#codeland-results'), 'danger')
+			return;
+		}
+		app.util.actionMessage('', $('#codeland-results'))
+		for(let line of data.res.split('\n')){
+			resultsTerm.writeln(line)
+		}
 	});
 }
 
@@ -303,6 +350,9 @@ $(document).ready(function(){
 			$.scope.runInformation.update({runner: name, ...data});
 		});
 	})
+
+	// Populate the persistent-runner list in the dropdown when opened.
+	loadPersistentRunners();
 
 	$('#runnerRecycle').on('click', function(event){
 		app.util.actionMessage(
@@ -562,6 +612,17 @@ $(document).ready(function(){
 						<button id="runnerRecycle" class="btn btn-outline-warning btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Get a new runner">
 							<i class="fa-solid fa-recycle"></i>
 						</button>
+						<button id="persistentBtn" class="btn btn-outline-info btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false" title="Persistent runners">
+							<i class="fa-solid fa-box-archive"></i>
+						</button>
+						<div class="dropdown-menu" id="persistentDropdown">
+							<a class="dropdown-item" href="#" onclick="createPersistentRunner()">
+								<i class="fa-solid fa-plus"></i> New persistent runner
+							</a>
+							<div class="dropdown-divider"></div>
+							<h6 class="dropdown-header">Run on persistent runner</h6>
+							<div id="persistentRunnerList" class="px-2"></div>
+						</div>
 						<button id="runnerInfo" class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
 							<i class="fa-solid fa-circle-info"></i>
 						</button>

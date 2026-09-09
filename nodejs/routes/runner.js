@@ -1,7 +1,7 @@
 'use strict';
 
 const router = require('express').Router();
-const {clworker} = require('../controller/codeland');
+const {clworker, workerManager} = require('../controller/codeland');
 
 
 router.get('/', async(req, res, next)=>{
@@ -31,7 +31,8 @@ router.get('/', async(req, res, next)=>{
 router.post('/run', async (req, res, next)=>{
   try{
     let time = Number.isInteger(Number(req.query.time)) ? req.query.time : undefined;
-    let result = await clworker.runnerRunOnce(req.body.code, time);
+    let memLimit = req.query.memLimit || req.body.memLimit;
+    let result = await clworker.runnerRunOnce(req.body.code, time, memLimit);
     res.json(result);  
   }catch(error){
     next(error)
@@ -42,10 +43,63 @@ router.post('/new', async (req, res, next)=>{
   let runner;
   try{
     runner = clworker.runnerPop();
-    const result = await clworker.runnerRun(runner, req.body.code);
+    const result = await clworker.runnerRun(runner, req.body.code, undefined, req.body.memLimit);
     return res.json({...result, runner: runner.name});
   }catch(error){
     if(runner && !error.runner) error.runner = runner;
+    next(error)
+  }
+});
+
+router.post('/persistent', async (req, res, next)=>{
+  let runner;
+  try{
+    const host = req.body.worker || clworker.ssh.host;
+    runner = await workerManager.runnerMakePersistent(req.body.name, req.body.memLimit, host);
+    return res.json({runner: runner.name, domain: runner.domain, worker: host});
+  }catch(error){
+    if(runner && !error.runner) error.runner = runner;
+    next(error)
+  }
+});
+
+router.post('/:runner/stop', async (req, res, next)=>{
+  try{
+    await workerManager.runnerStopPersistent(req.params.runner);
+    return res.json({res: 'stopped'});
+  }catch(error){
+    next(error)
+  }
+});
+
+router.post('/:runner/migrate', async (req, res, next)=>{
+  try{
+    const target = req.body.worker;
+    if(!target) throw new Error('worker is required');
+    const runner = await workerManager.runnerMigrate(req.params.runner, target);
+    return res.json({runner: runner.name, worker: target});
+  }catch(error){
+    next(error)
+  }
+});
+
+router.post('/:runner/run', async (req, res, next)=>{
+  try{
+    const time = Number.isInteger(Number(req.query.time)) ? req.query.time : undefined;
+    const result = await workerManager.runnerRunPersistent(req.params.runner, req.body.code, time);
+    return res.json(result);
+  }catch(error){
+    next(error)
+  }
+});
+
+router.get('/registry', async (req, res, next)=>{
+  try{
+    const {initOrm} = require('../lib/orm');
+    const models = await initOrm();
+    const runners = await models.Runner.list();
+    return res.json({runners: runners.map(r => r.toJSON())});
+  }catch(error){
     next(error)
   }
 });

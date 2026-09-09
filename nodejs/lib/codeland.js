@@ -77,7 +77,7 @@ class CodeLandWorker{
 		});
 
 		if(runner instanceof LXC){
-			if(message && message.error && message.error){
+			if(message && message.error){
 				message.error = message.error.toString();
 			}
 
@@ -110,12 +110,14 @@ class CodeLandWorker{
 		instances.
 	*/
 	async init(){
-
-
 		this.runnerTemplate = await LXC.get({
 			name: this.runnerTemplate,
 			execInstance: this.ssh
 		});
+
+		// Apply the worker default memory limit to the template so every
+		// runner created from it inherits the limit.
+		this.runnerTemplate.memLimit = this.memLimit;
 
 		let runner = await this.runnerTemplate.info()
 		setTimeout(()=> this.__log.call(this, 'init',{
@@ -129,7 +131,6 @@ class CodeLandWorker{
 			environment: conf.environment,
 		}), 1000)
 		
-
 		return this;
 	}
 
@@ -148,6 +149,10 @@ class CodeLandWorker{
 		
 		// Default memory target for runner creation
 		this.memTarget = args.memTarget || 1;
+
+		// Default per-runner memory limit (cgroup v2). Accepts bytes or a
+		// string like "512M". Undefined means no limit is applied.
+		this.memLimit = args.memLimit;
 
 		// How many runners should be created regardless of memory usage
 		this.minAvailableRunners = args.minAvailableRunners || 3;
@@ -168,12 +173,13 @@ class CodeLandWorker{
 	}
 
 	/*
-		getCurrentCopies and deleteUntracedRunners clean up zombie runners from
+		getCurrentCopies and deleteUntrackedRunners clean up zombie runners from
 		old instances of Codeland
 	*/
 	async getCurrentCopies(){
 		let containers = await this.runnerTemplate.list();
 		let runners = {};
+
 		for(let container of containers){
 			if(container.name.startsWith(this.runnerPrefix ) ){
 				if(container.name === this.runnerTemplate) continue;
@@ -187,7 +193,7 @@ class CodeLandWorker{
 		return runners;
 	}
 
-	async deleteUntracedRunners(){
+	async deleteUntrackedRunners(){
 		for(let [name, runner] of Object.entries(await this.getCurrentCopies())){
 			if(!this.__runners[name]){
 				(async ()=>{
@@ -210,7 +216,7 @@ class CodeLandWorker{
 		Todo:
 		Test to make sure the crunner is working.
 	*/
-	async runnerMake(name){
+	async runnerMake(name, memLimit){
 		name = name || this.runnerPrefix + (Math.random()*100).toString().slice(-5);
 		let runner;
 		try{
@@ -220,6 +226,10 @@ class CodeLandWorker{
 			runner = await this.runnerTemplate.startEphemeral(name);
 			runner.statusHistory = [];
 			runner.domain = `${runner.name}.${this.domain}`;
+
+			if(memLimit){
+				await runner.setMemLimit(memLimit);
+			}
 
 			let tryCount = 0;
 			let runnerInfo = {};
@@ -246,6 +256,73 @@ class CodeLandWorker{
 	}
 
 	/*
+		Create a persistent runner. Unlike runnerMake, the writable layer is
+		stored on shared NFS so the runner survives restarts and can move
+		between workers. The runner is added to the tracked runners and marked
+		available.
+	*/
+	async runnerMakePersistent(name, memLimit){
+		name = name || this.runnerPrefix + (Math.random()*100).toString().slice(-5);
+		let runner;
+		try{
+			this.__runnerSetStatus(name, 'oven:cooking');
+			this.runnersCooking++
+			runner = await this.runnerTemplate.startPersistent(name);
+			runner.statusHistory = [];
+			runner.domain = `${runner.name}.${this.domain}`;
+
+			if(memLimit){
+				await runner.setMemLimit(memLimit);
+			}
+
+			let tryCount = 0;
+			let runnerInfo = {};
+
+			while(!runnerInfo.ip){
+				await sleep(1500);
+				runnerInfo = await runner.info();
+				if(tryCount++ === 10){ // give up
+					throw new Error('Timeout waiting on LXC IP');
+				}
+				if(runnerInfo.state !== "RUNNING") throw new Error('LXC failed to start')
+			}
+			this.__runnerSetStatus(runner, 'available',);
+
+			this.__runners[runner.name] = runner;
+
+			return runner;
+		}catch(error){
+			this.__runnerSetStatus(runner || name, 'oven:error',{error});
+			if(runner) runner.stopPersistent();
+			throw error;
+		}finally{
+			--this.runnersCooking
+		}
+	}
+
+	/*
+		Stop a persistent runner, keeping its NFS state. The runner is removed
+		from the tracked runners but can be restarted later.
+	*/
+	async runnerStopPersistent(runner){
+		let name = runner instanceof LXC ? runner.name : runner;
+		this.__runnerSetStatus(runner, 'stopped');
+
+		try{
+			if(this.__runners[name]){
+				delete this.__runners[name];
+			}
+			if(!(runner instanceof LXC)) throw new Error('runnerNotLXC');
+
+			await runner.stopPersistent();
+		}catch(error){
+			this.__runnerSetStatus(name, 'stop:error', {error});
+			throw error;
+		}
+		this.__runnerSetStatus(name, 'stopped:success');
+	}
+
+	/*
 		Auto populate the array of available runners. The percent of used memory
 		or the minimum required runners are used to decide if more need to be
 		created. Since runner creation is an async job, the number of in flight
@@ -261,7 +338,7 @@ class CodeLandWorker{
 				let memory = await this.ssh.memory();
 				let availableRunners = this.listAvailableRunners();
 				// Test conditions to see of we need more runners
-				if(this.runnersCooking > this.minAvailableRunners){
+				if(this.runnersCooking >= this.minAvailableRunners){
 					this.__ovenSetStatus('full', 'To many runners cooking, sleeping')
 
 					await sleep(3000)
@@ -304,7 +381,6 @@ class CodeLandWorker{
 			}catch(error){
 				this.__ovenSetStatus('fatal', {error});
 			}
-			console.log('here')
 			await sleep(3000)
 		}
 	}
@@ -380,7 +456,7 @@ class CodeLandWorker{
 				code: code
 			}, {
 				headers: {
-					Host: runner.name
+					Host: `1500_${runner.name}`
 				},
 				timeout: time ? time*1000 : undefined,
 			});
@@ -416,10 +492,13 @@ class CodeLandWorker{
 	/*
 		Execute code on new runner, then kill it.
 	*/
-	async runnerRunOnce(code, time=60){
+	async runnerRunOnce(code, time=60, memLimit){
 		let runner;
 		try{
 			runner = await this.runnerPop();
+			if(memLimit){
+				await runner.setMemLimit(memLimit);
+			}
 			let res = await this.runnerRun(runner, code, time);
 
 			return res;	
@@ -455,7 +534,7 @@ if (require.main === module){(async function(){try{
 
 	// await clworker.ssh.exec('bash ~/clean_crunners.sh');
 
-	// await clworker.deleteUntracedRunners();
+	// await clworker.deleteUntrackedRunners();
 	await clworker.runnerOven();
 	
 	console.log('mem info:', await clworker.memory())

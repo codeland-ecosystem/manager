@@ -62,7 +62,9 @@ class LXC{
 		this.name = args.name
 		this.execInstance = args.execInstance || this.constructor.execInstance;
 		this.ephemeralHack = args.ephemeralHack
+		this.persistent = args.persistent
 		this.base = args.base
+		this.memLimit = args.memLimit
 	}
 
 	async sysExec(command){
@@ -169,8 +171,11 @@ class LXC{
 
 	async startEphemeral(newName){
 		try{
+			let memLimit = this.memLimit ? this.constructor.parseMemLimit(this.memLimit) : '';
+			// lxc-start-ephemeral is a python script; the manager's sysExec
+			// runs commands via bash, so invoke it explicitly with python3.
 			let res = await this.sysExec(
-				`~/.local/bin/lxc-start-ephemeral "${this.name}" "${newName}"`
+				`python3 ~/.local/bin/lxc-start-ephemeral "${this.name}" "${newName}" "${memLimit}"`
 			);
 
 			return new LXC({
@@ -178,11 +183,92 @@ class LXC{
 				execInstance: this.execInstance,
 				base: this,
 				ephemeralHack: true,
+				memLimit: this.memLimit,
 			});
 
 		}catch(error){
 			throw error
 		}
+	}
+
+	/*
+		Start a persistent runner. The writable layer lives on shared NFS so
+		the runner can move between workers. If the runner already exists on
+		this worker (e.g. after a move), it is started in place.
+	*/
+	async startPersistent(newName){
+		try{
+			let memLimit = this.memLimit ? this.constructor.parseMemLimit(this.memLimit) : '';
+			let res = await this.sysExec(
+				`python3 ~/.local/bin/lxc-start-persistent "${newName}" "${this.name}" "${memLimit}"`
+			);
+
+			return new LXC({
+				name: newName,
+				execInstance: this.execInstance,
+				base: this,
+				persistent: true,
+				memLimit: this.memLimit,
+			});
+
+		}catch(error){
+			throw error
+		}
+	}
+
+	/*
+		Stop a persistent runner, keeping its NFS state so it can be restarted
+		or moved to another worker.
+	*/
+	async stopPersistent(){
+		try{
+			await this.sysExec(
+				`~/.local/bin/lxc-stop-persistent "${this.name}"`
+			);
+			return true;
+		}catch(error){
+			throw error;
+		}
+	}
+
+	/*
+		Set a cgroup v2 memory limit on a running container. Accepts a number
+		of bytes or a human readable string like "512M" or "1G". Writes
+		directly to the live cgroup so it takes effect without a restart.
+	*/
+	async setMemLimit(limit){
+		try{
+			let bytes = this.constructor.parseMemLimit(limit);
+			if(!bytes) return;
+
+			await this.sysExec(
+				`echo ${bytes} | sudo tee /sys/fs/cgroup/lxc/${this.name}/memory.max > /dev/null`
+			);
+
+			return true;
+		}catch(error){
+			throw error;
+		}
+	}
+
+	static parseMemLimit(limit){
+		if(typeof limit === 'number') return limit;
+
+		if(typeof limit === 'string'){
+			let match = limit.trim().match(/^(\d+(?:\.\d+)?)\s*([kmgt]?i?b?)$/i);
+			if(!match) return null;
+
+			let value = Number(match[1]);
+			let unit = match[2].toLowerCase();
+			let multiplier = {b: 1, kb: 1024, mb: 1024**2, gb: 1024**3, tb: 1024**4}[unit];
+			if(multiplier === undefined){
+				multiplier = {k: 1024, m: 1024**2, g: 1024**3, t: 1024**4}[unit] || 1;
+			}
+
+			return Math.floor(value * multiplier);
+		}
+
+		return null;
 	}
 
 	async destroyEphemeral(name){

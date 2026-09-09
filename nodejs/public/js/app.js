@@ -370,7 +370,34 @@ app.codeland = (function(app){
 		app.api.get(`runner/${runner}`, callback);
 	}
 
-	return {once, getRunner, call, kill, persistentRun, info, setRunner, newRunner};
+	function makePersistent(args, callback){
+		app.api.post('runner/persistent', args, callback);
+	}
+
+	function runPersistent(name, code, callback){
+		app.api.post(`runner/${name}/run`, {code: code}, function(error, data){
+			if(error) return callback(error, data);
+			callback(null, {
+				...data,
+				res: data.res ? atob(data.res) : '',
+			});
+		});
+	}
+
+	function stopPersistent(name, callback){
+		app.api.post(`runner/${name}/stop`, {}, callback);
+	}
+
+	function migratePersistent(name, worker, callback){
+		app.api.post(`runner/${name}/migrate`, {worker: worker}, callback);
+	}
+
+	function listRegistry(callback){
+		app.api.get('runner/registry', callback);
+	}
+
+	return {once, getRunner, call, kill, persistentRun, info, setRunner, newRunner,
+		makePersistent, runPersistent, stopPersistent, migratePersistent, listRegistry};
 
 })(app);
 

@@ -14,6 +14,12 @@ module.exports = {
 	redis: {
 		prefix: 'cl-manager_'
 	},
+	// Sequelize/SQL database for ORM-backed models (tokens, etc.).
+	database: {
+		dialect: 'sqlite',
+		storage: __dirname + '/cl-manager.sqlite',
+		logging: false,
+	},
 	httpProxyAPI:{
 		host: 'http://10.2.0.51:3000',
 		key: '__IN SRECREST FILE__'
@@ -28,5 +34,9 @@ module.exports = {
 		memTarget: 1,
 		minAvailableRunners: 10,
 		domain: 'prod.718it.codeland.us',
+		memLimit: '512M',
 	},
+	// Additional worker hosts for persistent runner migration. The primary
+	// worker (conf.ssh.host) is always registered.
+	workers: [],
 };

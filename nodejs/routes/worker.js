@@ -28,16 +28,16 @@ router.get('/zombies', async (req, res, next)=>{
 	try{
 		res.json({res: await clworker.getCurrentCopies()})
 	}catch(error){
-		next(err);
+		next(error);
 	}
 })
 
 router.delete('/zombies', (req, res, next)=>{
 	try{
-		clworker.deleteUntracedRunners()
+		clworker.deleteUntrackedRunners()
 		res.json({res: 'working...'})
 	}catch(error){
-		next(err);
+		next(error);
 	}
 })
 
