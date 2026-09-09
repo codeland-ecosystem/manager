@@ -560,12 +560,21 @@ class CodeLandWorker{
 
 			this.__runnerSetStatus(runner, 'complete', {duration});
 
-			// res.data.res is base64 of the wrapper's stdout (the JSON blob).
+			// res.data.res is the wrapper's stdout. crunner appends
+			// " 2>&1|base64" to the code, but because our wrapper ends with a
+			// `;`, that suffix becomes a separate empty command, so the JSON
+			// is NOT base64-encoded by crunner. Handle both raw JSON and
+			// base64-encoded JSON.
+			let raw = res.data.res || '';
 			let parsed = {};
 			try{
-				parsed = JSON.parse(Buffer.from(res.data.res, 'base64').toString('utf8'));
+				parsed = JSON.parse(raw);
 			}catch(e){
-				parsed = {stdout: res.data.res, stderr: '', exit: null};
+				try{
+					parsed = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+				}catch(e2){
+					parsed = {stdout: raw, stderr: '', exit: null};
+				}
 			}
 
 			return {
