@@ -94,6 +94,45 @@ class WorkerManager{
 	}
 
 	/*
+		Rehydrate persistent runners after a manager restart. The registry
+		persists across restarts, but each worker's in-memory __runners map is
+		empty, so runnerRunPersistent would fail. Start every registry entry
+		marked 'running' on its registered worker so persistent runners are
+		usable again without manual intervention.
+	*/
+	async rehydrate(){
+		const Runner = (await this.registry()).Runner;
+		const entries = await Runner.list();
+		let started = 0;
+		let failed = 0;
+
+		for(const entry of entries){
+			if(entry.status !== 'running') continue;
+
+			const worker = this.workers[entry.worker];
+			if(!worker){
+				console.error(`rehydrate: no worker registered for ${entry.worker} (runner ${entry.name})`);
+				failed++;
+				continue;
+			}
+
+			try{
+				// If the runner is already tracked (e.g. this worker just
+				// created it), skip.
+				if(worker.runnerGetByNameSafe && worker.runnerGetByNameSafe(entry.name)) continue;
+				await worker.runnerMakePersistent(entry.name);
+				started++;
+			}catch(error){
+				console.error(`rehydrate: failed to start ${entry.name} on ${entry.worker}:`, error.message);
+				failed++;
+			}
+		}
+
+		console.log(`rehydrate: started ${started} persistent runner(s), ${failed} failed`);
+		return {started, failed};
+	}
+
+	/*
 		Stop a persistent runner on its current worker, keeping NFS state.
 	*/
 	async runnerStopPersistent(name){

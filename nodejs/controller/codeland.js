@@ -59,6 +59,13 @@ for(const host of (conf.workers || [])){
     }catch{}
   }, 2000, clworker)
   await clworker.deleteUntrackedRunners();
+  // Rehydrate persistent runners from the registry so they are usable again
+  // after a manager restart (the in-memory __runners map is empty on boot).
+  try{
+    await workerManager.rehydrate();
+  }catch(error){
+    console.error('rehydrate error:', error);
+  }
   await clworker.runnerOven(10*1000);
 
   clworker.__log('df', (await clworker.ssh.df())['/'])

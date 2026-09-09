@@ -62,6 +62,19 @@ class CodeLandWorker{
 
 	__logPrintIgnore = ['cl:worker:memory', 'cl:worker:df']
 
+	/*
+		Generate a unique, collision-resistant suffix for runner names. Uses a
+		monotonic counter plus a random component so concurrent creations on
+		the same worker cannot collide.
+	*/
+	__uniqueSuffix(){
+		if(!this.__nameCounter) this.__nameCounter = 0;
+		this.__nameCounter++;
+		const counter = this.__nameCounter.toString(36);
+		const rand = Math.random().toString(36).slice(2, 8);
+		return `${counter}-${rand}`;
+	}
+
 	__log(topic, message){
 		if(message.error && message.error instanceof Error){
 			console.error('==========\n', message.error, '\n===========')
@@ -196,12 +209,9 @@ class CodeLandWorker{
 	async deleteUntrackedRunners(){
 		for(let [name, runner] of Object.entries(await this.getCurrentCopies())){
 			if(!this.__runners[name]){
-				(async ()=>{
-					this.__ovenSetStatus('cleaning', `Removing zombie worker ${runner.name}`)
-					await this.runnerFree(runner, false)
-					await sleep(100)
-				})()
-				await sleep(250);
+				this.__ovenSetStatus('cleaning', `Removing zombie worker ${runner.name}`)
+				await this.runnerFree(runner, false)
+				await sleep(100)
 			}
 					// await this.ssh.exec(`clean_crunners.sh ${runner.name.replace('crunner0-', '')}`)
 		}
@@ -217,7 +227,7 @@ class CodeLandWorker{
 		Test to make sure the crunner is working.
 	*/
 	async runnerMake(name, memLimit){
-		name = name || this.runnerPrefix + (Math.random()*100).toString().slice(-5);
+		name = name || this.runnerPrefix + this.__uniqueSuffix();
 		let runner;
 		try{
 	
@@ -248,7 +258,7 @@ class CodeLandWorker{
 			return runner;
 		}catch(error){
 			this.__runnerSetStatus(runner || name, 'oven:error',{error});
-			if(runner) runner.destroyEphemeral();
+			if(runner) await runner.destroyEphemeral();
 			throw error;
 		}finally{
 			--this.runnersCooking
@@ -262,7 +272,7 @@ class CodeLandWorker{
 		available.
 	*/
 	async runnerMakePersistent(name, memLimit){
-		name = name || this.runnerPrefix + (Math.random()*100).toString().slice(-5);
+		name = name || this.runnerPrefix + this.__uniqueSuffix();
 		let runner;
 		try{
 			this.__runnerSetStatus(name, 'oven:cooking');
@@ -293,7 +303,7 @@ class CodeLandWorker{
 			return runner;
 		}catch(error){
 			this.__runnerSetStatus(runner || name, 'oven:error',{error});
-			if(runner) runner.stopPersistent();
+			if(runner) await runner.stopPersistent();
 			throw error;
 		}finally{
 			--this.runnersCooking
@@ -351,8 +361,14 @@ class CodeLandWorker{
 						cooking: ovenSize,
 					})
 				}else if(memory.percentUsed < this.memTarget) {
-					var ovenSize = Math.floor(this.minAvailableRunners/2);
-						ovenSize = (ovenSize%3)+1
+					// Scale the batch by how much memory headroom remains, so
+					// we cook more when there's lots of free memory and fewer
+					// as we approach the target. Clamp to a sane range.
+					let headroom = this.memTarget - memory.percentUsed;
+					var ovenSize = Math.max(1, Math.min(
+						this.minAvailableRunners,
+						Math.ceil(headroom)
+					));
 
 					this.__ovenSetStatus('cooking', {
 						message: 'memory not met',
@@ -445,6 +461,13 @@ class CodeLandWorker{
 	}
 
 	/*
+		Return the named runner, or null if it is not tracked. Does not throw.
+	*/
+	runnerGetByNameSafe(name){
+		return this.__runners[name] || null;
+	}
+
+	/*
 		Execute code on the remote runner via the crunner API.
 	*/
 	async runnerRun(runner, code, time){
@@ -505,7 +528,7 @@ class CodeLandWorker{
 		}catch(error){
 			throw error;
 		}finally{
-			if(runner) this.runnerFree(runner);
+			if(runner) await this.runnerFree(runner);
 		}
 	}
 }
