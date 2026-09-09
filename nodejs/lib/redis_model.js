@@ -51,7 +51,7 @@ class Table{
 
 	static async exists(index){
 		try{
-			await this.get(data);
+			await this.get(index);
 
 			return true;
 		}catch(error){

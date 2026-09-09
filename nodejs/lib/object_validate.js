@@ -7,7 +7,7 @@ const process_type = {
 	},
 	string: function(key, value){
 		if(key.min && value.length < key.min) return `is too short, min ${key.min}.`
-		if(key.max && value.length > key.max) return `is too short, max ${key.max}.`
+		if(key.max && value.length > key.max) return `is too long, max ${key.max}.`
 	},
 }
 

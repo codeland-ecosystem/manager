@@ -24,6 +24,7 @@ module.exports = {
 		runnerTemplate: 'crunner0',
 		memTarget: 15,
 		minAvailableRunners: 10,
-		domian: 'cl-worker-3.718it.codeland.us',
+		domain: 'cl-worker-3.718it.codeland.us',
+		memLimit: '512M',
 	},
 };

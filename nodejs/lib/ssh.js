@@ -85,7 +85,8 @@ class Ssh extends Local{
 			
 			return await super.exec(command);
 		}catch(error){
-			if(error.stdout.includes('Connection reset by peer')) throw new Error('SshConnectionReset');
+			if((error.stdout || '').includes('Connection reset by peer')) throw new Error('SshConnectionReset');
+			throw error;
 		}
 	}
 }

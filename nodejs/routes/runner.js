@@ -31,7 +31,8 @@ router.get('/', async(req, res, next)=>{
 router.post('/run', async (req, res, next)=>{
   try{
     let time = Number.isInteger(Number(req.query.time)) ? req.query.time : undefined;
-    let result = await clworker.runnerRunOnce(req.body.code, time);
+    let memLimit = req.query.memLimit || req.body.memLimit;
+    let result = await clworker.runnerRunOnce(req.body.code, time, memLimit);
     res.json(result);  
   }catch(error){
     next(error)
@@ -42,7 +43,7 @@ router.post('/new', async (req, res, next)=>{
   let runner;
   try{
     runner = clworker.runnerPop();
-    const result = await clworker.runnerRun(runner, req.body.code);
+    const result = await clworker.runnerRun(runner, req.body.code, undefined, req.body.memLimit);
     return res.json({...result, runner: runner.name});
   }catch(error){
     if(runner && !error.runner) error.runner = runner;

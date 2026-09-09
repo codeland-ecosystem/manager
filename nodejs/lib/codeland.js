@@ -77,7 +77,7 @@ class CodeLandWorker{
 		});
 
 		if(runner instanceof LXC){
-			if(message && message.error && message.error){
+			if(message && message.error){
 				message.error = message.error.toString();
 			}
 
@@ -115,6 +115,10 @@ class CodeLandWorker{
 			execInstance: this.ssh
 		});
 
+		// Apply the worker default memory limit to the template so every
+		// runner created from it inherits the limit.
+		this.runnerTemplate.memLimit = this.memLimit;
+
 		let runner = await this.runnerTemplate.info()
 		setTimeout(()=> this.__log.call(this, 'init',{
 			runnerTemplate: this.runnerTemplate.name,
@@ -145,6 +149,10 @@ class CodeLandWorker{
 		
 		// Default memory target for runner creation
 		this.memTarget = args.memTarget || 1;
+
+		// Default per-runner memory limit (cgroup v2). Accepts bytes or a
+		// string like "512M". Undefined means no limit is applied.
+		this.memLimit = args.memLimit;
 
 		// How many runners should be created regardless of memory usage
 		this.minAvailableRunners = args.minAvailableRunners || 3;
@@ -208,7 +216,7 @@ class CodeLandWorker{
 		Todo:
 		Test to make sure the crunner is working.
 	*/
-	async runnerMake(name){
+	async runnerMake(name, memLimit){
 		name = name || this.runnerPrefix + (Math.random()*100).toString().slice(-5);
 		let runner;
 		try{
@@ -218,6 +226,10 @@ class CodeLandWorker{
 			runner = await this.runnerTemplate.startEphemeral(name);
 			runner.statusHistory = [];
 			runner.domain = `${runner.name}.${this.domain}`;
+
+			if(memLimit){
+				await runner.setMemLimit(memLimit);
+			}
 
 			let tryCount = 0;
 			let runnerInfo = {};
@@ -259,7 +271,7 @@ class CodeLandWorker{
 				let memory = await this.ssh.memory();
 				let availableRunners = this.listAvailableRunners();
 				// Test conditions to see of we need more runners
-				if(this.runnersCooking > this.minAvailableRunners){
+				if(this.runnersCooking >= this.minAvailableRunners){
 					this.__ovenSetStatus('full', 'To many runners cooking, sleeping')
 
 					await sleep(3000)
@@ -302,7 +314,6 @@ class CodeLandWorker{
 			}catch(error){
 				this.__ovenSetStatus('fatal', {error});
 			}
-			console.log('here')
 			await sleep(3000)
 		}
 	}
@@ -378,7 +389,7 @@ class CodeLandWorker{
 				code: code
 			}, {
 				headers: {
-					Host: runner.name
+					Host: `1500_${runner.name}`
 				},
 				timeout: time ? time*1000 : undefined,
 			});
@@ -414,10 +425,13 @@ class CodeLandWorker{
 	/*
 		Execute code on new runner, then kill it.
 	*/
-	async runnerRunOnce(code, time=60){
+	async runnerRunOnce(code, time=60, memLimit){
 		let runner;
 		try{
 			runner = await this.runnerPop();
+			if(memLimit){
+				await runner.setMemLimit(memLimit);
+			}
 			let res = await this.runnerRun(runner, code, time);
 
 			return res;	

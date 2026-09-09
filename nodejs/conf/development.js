@@ -28,5 +28,6 @@ module.exports = {
 		memTarget: 1,
 		minAvailableRunners: 4,
 		domain: 'dev.718it.codeland.us',
+		memLimit: '512M',
 	},
 };
