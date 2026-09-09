@@ -537,12 +537,15 @@ class CodeLandWorker{
 			}
 
 			// Wrap: run the command, tee stdout/stderr to files, capture exit.
+			// Build the JSON with a heredoc to avoid printf %s escaping issues
+			// through the multiple shell layers.
 			const wrapper = `
 				OUT=$(mktemp); ERR=$(mktemp);
 				{ ${runCmd}; } >"$OUT" 2>"$ERR";
 				EXIT=$?;
-				printf '{"stdout":"%s","stderr":"%s","exit":%d}' \\
-					"$(base64 -w0 <"$OUT")" "$(base64 -w0 <"$ERR")" "$EXIT";
+				cat <<JSON
+				{"stdout":"$(base64 -w0 <"$OUT")","stderr":"$(base64 -w0 <"$ERR")","exit":$EXIT}
+				JSON
 				rm -f "$OUT" "$ERR";
 			`;
 
