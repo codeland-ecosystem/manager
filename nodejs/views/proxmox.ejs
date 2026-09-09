@@ -74,7 +74,7 @@
 </style>
 
 <div class="prox-cards card-columns">
-	<div class="shadow-lg card" jq-repeat="proxmox" data-siteid='{{vpnSite.id}}'>
+	<div class="shadow-lg card" jq-repeat="proxmox" jq-index-key="siteId" data-siteid='{{vpnSite.id}}'>
 		<div class="card-header" >
 			<h3>
 				{{ vpnSite.name }}

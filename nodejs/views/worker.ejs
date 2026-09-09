@@ -109,9 +109,6 @@
 	}
 
 	$(document).ready(function(){
-		$.scope.runnerAvailable.__index = 'name';
-		$.scope.runnerInUse.__index = 'name';
-		$.scope.persistentRunners.__index = 'name';
 
 		//   // set up animation for adding to taks list
 		// $.scope.runnerAvailable.__put = function(){
@@ -400,7 +397,7 @@
 			<div class="card-header actionMessage" style="display:none"></div>
 
 				<ul class="list-group ist-group-flush">
-					<li id="runner-{{name}}" jq-repeat="runnerAvailable" class="list-group-item list-group-item-primary" style="display:none">
+					<li id="runner-{{name}}" jq-repeat="runnerAvailable" jq-index-key="name" class="list-group-item list-group-item-primary" style="display:none">
 						<button class="btn btn-sm btn-danger float-right" onclick="app.codeland.kill('{{name}}', ()=>{})">
 							<i class="fa-solid fa-power-off"></i>
 						</button>
@@ -420,7 +417,7 @@
 			<div class="card-header actionMessage" style="display:none"></div>
 
 				<ul class="list-group">
-					<li id="runner-{{name}}" jq-repeat="runnerInUse" class="list-group-item list-group-item-warning" style="display:none">
+					<li id="runner-{{name}}" jq-repeat="runnerInUse" jq-index-key="name" class="list-group-item list-group-item-warning" style="display:none">
 						<button class="btn btn-sm btn-danger float-right" onclick="app.codeland.kill('{{name}}', ()=>{})">
 							<i class="fa-solid fa-power-off"></i>
 						</button>
@@ -444,7 +441,7 @@
 			</div>
 			<div class="card-header actionMessage" style="display:none"></div>
 			<ul class="list-group list-group-flush">
-				<li id="runner-{{name}}" jq-repeat="persistentRunners" class="list-group-item" style="display:none">
+				<li id="runner-{{name}}" jq-repeat="persistentRunners" jq-index-key="name" class="list-group-item" style="display:none">
 					<div class="d-flex w-100 justify-content-between">
 						<b>{{name}}</b>
 						<span class="badge badge-secondary">{{status}}</span>
