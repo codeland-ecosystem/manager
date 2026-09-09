@@ -172,8 +172,10 @@ class LXC{
 	async startEphemeral(newName){
 		try{
 			let memLimit = this.memLimit ? this.constructor.parseMemLimit(this.memLimit) : '';
+			// lxc-start-ephemeral is a python script; the manager's sysExec
+			// runs commands via bash, so invoke it explicitly with python3.
 			let res = await this.sysExec(
-				`~/.local/bin/lxc-start-ephemeral "${this.name}" "${newName}" "${memLimit}"`
+				`python3 ~/.local/bin/lxc-start-ephemeral "${this.name}" "${newName}" "${memLimit}"`
 			);
 
 			return new LXC({
@@ -198,7 +200,7 @@ class LXC{
 		try{
 			let memLimit = this.memLimit ? this.constructor.parseMemLimit(this.memLimit) : '';
 			let res = await this.sysExec(
-				`~/.local/bin/lxc-start-persistent "${newName}" "${this.name}" "${memLimit}"`
+				`python3 ~/.local/bin/lxc-start-persistent "${newName}" "${this.name}" "${memLimit}"`
 			);
 
 			return new LXC({
