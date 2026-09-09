@@ -1,10 +1,10 @@
 'use strict';
 
-const { Ssh } = require('./ssh');
-const { CodeLandWorker } = require('./codeland');
-const { Runner } = require('../models/runner');
-const { createClient } = require('redis');
-const conf = require('../conf');
+	const { Ssh } = require('./ssh');
+	const { CodeLandWorker } = require('./codeland');
+	const { initOrm } = require('./orm');
+	const { createClient } = require('redis');
+	const conf = require('../conf');
 
 /*
 	Manages multiple CodeLandWorkers (one per worker host) and a central
@@ -20,10 +20,18 @@ class WorkerManager{
 
 	constructor(args){
 		this.workers = {};            // host -> CodeLandWorker
-		this.registry = args.registry || Runner;
 		this.sshConfig = args.sshConfig || {};
 		this.clworkerConfig = args.clworkerConfig || {};
 		this.redis = args.redis || createClient({});
+		this.ormReady = args.initOrm ? args.initOrm() : initOrm();
+	}
+
+	/*
+		Resolve the ORM models (Runner registry). Ensures the ORM is
+		initialized before use.
+	*/
+	async registry(){
+		return await this.ormReady;
 	}
 
 	/*
@@ -50,7 +58,9 @@ class WorkerManager{
 		registry.
 	*/
 	async getRunnerWorker(name){
-		const entry = await this.registry.get(name);
+		const Runner = (await this.registry()).Runner;
+		const entry = await Runner.get(name);
+		if(!entry) throw this.errors.runnerNotFound(name);
 		const worker = this.workers[entry.worker];
 		if(!worker) throw this.errors.workerNotFound(entry.worker);
 		return worker;
@@ -64,7 +74,8 @@ class WorkerManager{
 		if(!worker) throw this.errors.workerNotFound(host);
 
 		const runner = await worker.runnerMakePersistent(name, memLimit);
-		await this.registry.add({
+		const Runner = (await this.registry()).Runner;
+		await Runner.create({
 			name,
 			worker: host,
 			type: 'persistent',
@@ -89,7 +100,8 @@ class WorkerManager{
 		const worker = await this.getRunnerWorker(name);
 		const runner = worker.runnerGetByName(name);
 		await worker.runnerStopPersistent(runner);
-		const entry = await this.registry.get(name);
+		const Runner = (await this.registry()).Runner;
+		const entry = await Runner.get(name);
 		await entry.update({status: 'stopped'});
 	}
 
@@ -98,7 +110,9 @@ class WorkerManager{
 		Uses a redis lock so only one worker mounts the NFS delta0 at a time.
 	*/
 	async runnerMigrate(name, targetHost){
-		const entry = await this.registry.get(name);
+		const Runner = (await this.registry()).Runner;
+		const entry = await Runner.get(name);
+		if(!entry) throw this.errors.runnerNotFound(name);
 		const sourceHost = entry.worker;
 		if(sourceHost === targetHost) return entry;
 
@@ -144,6 +158,13 @@ class WorkerManager{
 			error.name = 'runnerBusy';
 			error.message = `The runner ${name} is currently being migrated`;
 			error.status = 409;
+			return error;
+		},
+		runnerNotFound: (name)=>{
+			const error = new Error('runnerNotFound');
+			error.name = 'runnerNotFound';
+			error.message = `The runner ${name} is not in the registry`;
+			error.status = 404;
 			return error;
 		},
 	}

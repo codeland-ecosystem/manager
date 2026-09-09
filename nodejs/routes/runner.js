@@ -95,9 +95,10 @@ router.post('/:runner/run', async (req, res, next)=>{
 
 router.get('/registry', async (req, res, next)=>{
   try{
-    const {Runner} = require('../models/runner');
-    const entries = await Runner.listDetail();
-    return res.json({runners: entries});
+    const {initOrm} = require('../lib/orm');
+    const models = await initOrm();
+    const runners = await models.Runner.list();
+    return res.json({runners: runners.map(r => r.toJSON())});
   }catch(error){
     next(error)
   }
