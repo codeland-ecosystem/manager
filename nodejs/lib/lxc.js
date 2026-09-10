@@ -272,11 +272,11 @@ class LXC{
 	}
 
 	async destroyEphemeral(name){
-
-		// if(!this.ephemeralHack) return await this.destroy();
-
 		try{
-			name = this.name || name
+			// Prefer the explicit name argument. When called on the template
+			// (this.name === base) to clean up a failed runner, we must NOT
+			// fall back to this.name or we'd destroy the base container.
+			name = name || this.name
 			let res = await this.sysExec(
 				`~/.local/bin/lxc-destroy-ephemeral "${name}"`
 			);
