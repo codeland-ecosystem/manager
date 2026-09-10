@@ -111,6 +111,26 @@ The system manages three kinds of runners, all LXC containers cloned from a
   NFS, so they survive restarts and can migrate between workers. Use
   `POST /runner/persistent`.
 
+## Features
+
+- **Structured runs** — `POST /runner/run/structured` returns `stdout`,
+  `stderr`, and `exit` separately, and accepts `language`, `stdin`, `files[]`,
+  `timeout`, and `memLimit`.
+- **Queue-on-empty** — when the oven is empty, requests wait (up to a `queue`
+  timeout) for a runner instead of failing with an instant 503.
+- **Published ports / preview** — the nginx proxy routes
+  `PORT_<runner>.<domain>` to the runner's port, so a server started on a
+  runner is reachable at a public URL. The UI has a one-click Preview button.
+- **Files** — upload, list, and read files on a runner via
+  `GET/POST /runner/:runner/files`.
+- **Idle reclaim** — available runners idle longer than 15 minutes are
+  destroyed automatically, keeping the oven full without manual intervention.
+- **Registry routing** — `POST/GET/DELETE /runner/:runner` resolve the runner
+  through the registry, so named runners (persistent or ephemeral) route to
+  their current worker.
+- **Metrics** — `GET /worker/metrics` exposes runner counts, oven state, and
+  recent job history.
+
 ## API Documentation
 
 Full endpoint reference is in [ops/docs/api.md](ops/docs/api.md). Quick
@@ -122,6 +142,14 @@ Execute a one-shot snippet:
 curl -X POST /api/v1/runner/run \
   -H 'Content-Type: application/json' \
   -d '{"code": "console.log(\"hi\")"}'
+```
+
+Execute a structured run (stdout/stderr/exit, with language and stdin):
+
+```bash
+curl -X POST /api/v1/runner/run/structured \
+  -H 'Content-Type: application/json' \
+  -d '{"code": "print(input())", "language": "python", "stdin": "hello"}'
 ```
 
 Create a persistent runner:

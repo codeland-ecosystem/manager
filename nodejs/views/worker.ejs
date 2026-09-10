@@ -257,6 +257,18 @@
 			}
 		});
 
+		// Load recent job history from the metrics endpoint.
+		app.api.get('worker/metrics', function(err, data){
+			if(err) return console.log('metrics error', err, data);
+			for(const h of (data.history || [])){
+				$.scope.runnerHistory.push({
+					...h,
+					whenAgo: moment(h.when).fromNow(),
+					okLabel: h.ok ? 'success' : 'danger',
+				});
+			}
+		});
+
 		setInterval(()=>{
 			$('.momentUpdate').each((idx,el)=>{
 				try{
@@ -468,10 +480,13 @@
 			</div>
 			<div class="card-header actionMessage" style="display:none"></div>
 			<div class="card-body">
-				<h1> Coming soon! </h1>
 				<ul class="list-group">
-					<li id="runner-{{name}}" jq-repeat="runnerHisory" class="list-group-item list-group-item-success" style="display:none">
-						{{name}}
+					<li id="runner-{{name}}" jq-repeat="runnerHistory" jq-index-key="when" class="list-group-item list-group-item-{{okLabel}}" style="display:none">
+						<div class="d-flex w-100 justify-content-between">
+							<small class="text-truncate" style="max-width: 60%" title="{{runner}}">{{runner}}</small>
+							<small>{{whenAgo}}</small>
+						</div>
+						<small>exit: {{exit}} &middot; {{duration}}ms</small>
 					</li>
 				</ul>
 			</div>

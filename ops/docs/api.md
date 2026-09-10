@@ -132,20 +132,75 @@ All endpoints live under `/api/v1`.
   - `runner` (string)
   - `worker` (string): the destination host.
 
+### Structured One-shot Run
+
+- **POST `/api/v1/runner/run/structured`**
+
+  Execute code on a fresh runner and return a structured result with stdout,
+  stderr, and exit code separated. The runner is destroyed after execution.
+
+  **Request Body:**
+  - `code` (string, required): the code to execute.
+  - `language` (string, optional): interpreter to use (e.g. `python`,
+    `javascript`, `bash`). Resolves to a template that pipes the code through
+    the right runtime.
+  - `stdin` (string, optional): piped to the process as stdin.
+  - `files` (array, optional): `[{ name, content }]` written to `/tmp` before
+    the run.
+  - `timeout` (integer, optional): max execution time in seconds.
+  - `memLimit` (string|int, optional): per-runner memory limit.
+  - `queue` (integer, optional): how long to wait (ms) for a runner if the
+    oven is empty (default 15000).
+
+  **Response:**
+  - `runner` (string)
+  - `domain` (string)
+  - `duration` (int): execution time in ms.
+  - `stdout` (string): decoded stdout.
+  - `stderr` (string): decoded stderr.
+  - `exit` (int): process exit code.
+
+  **Sample Request:**
+  ```json
+  {
+    "code": "print('hello')",
+    "language": "python",
+    "stdin": "world",
+    "timeout": 30
+  }
+  ```
+
+  **Sample Response:**
+  ```json
+  {
+    "runner": "crunner0-production-5-t1zzml",
+    "domain": "crunner0-production-5-t1zzml.cl-worker.example",
+    "duration": 55,
+    "stdout": "hello\n",
+    "stderr": "",
+    "exit": 0
+  }
+  ```
+
 ### Execute on a Specific Runner
 
 - **POST `/api/v1/runner/:runner`**
 
-  Execute code on a named runner currently tracked by the primary worker.
+  Execute code on a named runner (persistent or ephemeral), routed through the
+  registry to whatever worker currently hosts it.
 
   **Request Body:**
   - `code` (string): the code to execute.
+
+  **Query Parameters:**
+  - `time` (integer, optional): max execution time in seconds.
 
 ### Get Runner Info by Name
 
 - **GET `/api/v1/runner/:runner`**
 
-  Return detail for a named runner tracked by the primary worker.
+  Return detail for a named runner (persistent or ephemeral), routed through
+  the registry to its current worker.
 
   **Response:** LXC `info()` fields plus `lastStatus`, `domain`,
   `statusHistory`.
@@ -154,9 +209,51 @@ All endpoints live under `/api/v1`.
 
 - **DELETE `/api/v1/runner/:runner`**
 
-  Free/destroy a named runner tracked by the primary worker.
+  Free/destroy a named runner (persistent or ephemeral), routed through the
+  registry to its current worker.
 
   **Response:** `{ "res": "success" }`
+
+### List Files on a Runner
+
+- **GET `/api/v1/runner/:runner/files`**
+
+  List files in a directory on the runner.
+
+  **Query Parameters:**
+  - `dir` (string, optional): directory to list (default `/tmp`).
+
+  **Response:**
+  - `runner` (string)
+  - `dir` (string)
+  - `files` (array): `{ name, type, size }` per entry (`type` is `dir` or
+    `file`).
+
+### Read a File on a Runner
+
+- **GET `/api/v1/runner/:runner/files/content`**
+
+  Read a file's contents from the runner.
+
+  **Query Parameters:**
+  - `path` (string, required): the file path.
+
+  **Response:**
+  - `runner` (string)
+  - `path` (string)
+  - `content` (string): the file contents.
+
+### Write a File on a Runner
+
+- **POST `/api/v1/runner/:runner/files`**
+
+  Write a file on the runner.
+
+  **Request Body:**
+  - `path` (string, required): the destination path.
+  - `content` (string, required): the file contents.
+
+  **Response:** `{ "runner": "...", "path": "...", "res": "written" }`
 
 ### Persistent Runner Registry
 
@@ -194,6 +291,21 @@ All endpoints live under `/api/v1`.
 - **DELETE `/api/v1/worker/zombies`**
 
   Trigger cleanup of untracked runner containers.
+
+### Worker Metrics
+
+- **GET `/api/v1/worker/metrics`**
+
+  Return runner counts, oven state, and recent job history.
+
+  **Response:**
+  - `worker` (string): the worker host.
+  - `environment` (string)
+  - `startedAt` (int): epoch ms.
+  - `uptimeSeconds` (int)
+  - `runners` (object): `{ total, available, inUse, cooking }`.
+  - `oven` (object): cooking state and message.
+  - `history` (array): recent jobs `{ when, runner, duration, ok, exit }`.
 
 ## Common Errors
 
