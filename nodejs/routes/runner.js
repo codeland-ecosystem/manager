@@ -132,7 +132,8 @@ router.post('/new', async (req, res, next)=>{
 router.post('/persistent', async (req, res, next)=>{
   let runner;
   try{
-    const host = req.body.worker || clworker.ssh.host;
+    // If no worker is specified, place on the least-loaded worker.
+    const host = req.body.worker || await workerManager.pickWorkerLeastMemory();
     runner = await workerManager.runnerMakePersistent(req.body.name, req.body.memLimit, host);
     return res.json({runner: runner.name, domain: runner.domain, worker: host});
   }catch(error){

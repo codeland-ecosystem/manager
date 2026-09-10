@@ -65,6 +65,43 @@ class WorkerManager{
 	}
 
 	/*
+		Pick the worker with the least memory pressure for placement. Queries
+		each worker's host memory and returns the host with the lowest
+		percentUsed. Falls back to the first worker if memory can't be read.
+	*/
+	async pickWorkerLeastMemory(){
+		const hosts = Object.keys(this.workers);
+		if(!hosts.length) throw this.errors.workerNotFound('none');
+
+		let best = null;
+		let bestPercent = Infinity;
+		for(const host of hosts){
+			const worker = this.workers[host];
+			try{
+				const memory = await worker.ssh.memory();
+				const percent = memory.percentUsed || 0;
+				if(percent < bestPercent){
+					bestPercent = percent;
+					best = host;
+				}
+			}catch(error){
+				// Skip workers we can't reach; fall back to first if none work.
+				console.error(`pickWorkerLeastMemory: cannot read ${host}:`, error.message);
+			}
+		}
+		return best || hosts[0];
+	}
+
+	/*
+		Create a persistent runner on the least-loaded worker (or a specific
+		host if given).
+	*/
+	async runnerMakePersistentAuto(name, memLimit, host){
+		if(!host) host = await this.pickWorkerLeastMemory();
+		return this.runnerMakePersistent(name, memLimit, host);
+	}
+
+	/*
 		Return the worker currently hosting a persistent runner, based on the
 		registry.
 	*/
