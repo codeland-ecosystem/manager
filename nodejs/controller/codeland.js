@@ -66,7 +66,13 @@ for(const host of (conf.workers || [])){
       clworker.__log('memory', await clworker.ssh.memory())
     }catch{}
   }, 2000, clworker)
-  await clworker.deleteUntrackedRunners();
+  try{
+    await clworker.deleteUntrackedRunners();
+  }catch(error){
+    // Must not crash boot: everything below this in the IIFE (rehydrate,
+    // runnerOven) would never run, taking the whole process down with it.
+    console.error('untracked sweep (boot) error:', error);
+  }
   // Periodically sweep untracked runners so leaked container dirs from failed
   // cooks (or crashes) don't accumulate indefinitely.
   setInterval(async (clworker)=>{

@@ -223,10 +223,20 @@ class CodeLandWorker{
 		for(let container of containers){
 			if(container.name.startsWith(this.runnerPrefix ) ){
 				if(container.name === this.runnerTemplate) continue;
-				runners[container.name] = await this.runnerTemplate.constructor.get({
-					name: container.name,
-					execInstance: this.ssh,
-				});
+				try{
+					runners[container.name] = await this.runnerTemplate.constructor.get({
+						name: container.name,
+						execInstance: this.ssh,
+					});
+				}catch(error){
+					// The container can be destroyed by normal churn (freed,
+					// recycled, a failed cook cleaning up after itself)
+					// between list()'s snapshot and this inspection -- that's
+					// not a zombie, it's already gone. Skip it rather than
+					// letting one race fail the whole sweep.
+					if(error.message === 'ContainerDoesntExist') continue;
+					throw error;
+				}
 			}
 		}
 
