@@ -192,6 +192,45 @@ router.post('/:runner', async (req, res, next)=>{
   }
 });
 
+/*
+	File operations on a runner. These must be defined before the /:runner
+	catch-all routes so the /files path isn't swallowed.
+*/
+router.get('/:runner/files', async (req, res, next)=>{
+  try{
+    const {worker, runner} = await workerManager.getRunnerAnywhere(req.params.runner);
+    const dir = req.query.dir || '/tmp';
+    const files = await runner.listFiles(dir);
+    return res.json({runner: runner.name, dir, files});
+  }catch(error){
+    next(error)
+  }
+});
+
+router.get('/:runner/files/content', async (req, res, next)=>{
+  try{
+    const {worker, runner} = await workerManager.getRunnerAnywhere(req.params.runner);
+    const path = req.query.path;
+    if(!path) throw Object.assign(new Error('path is required'), {status: 400});
+    const content = await runner.readFile(path);
+    return res.json({runner: runner.name, path, content});
+  }catch(error){
+    next(error)
+  }
+});
+
+router.post('/:runner/files', async (req, res, next)=>{
+  try{
+    const {worker, runner} = await workerManager.getRunnerAnywhere(req.params.runner);
+    const {path, content} = req.body;
+    if(!path || typeof content !== 'string') throw Object.assign(new Error('path and content are required'), {status: 400});
+    await runner.writeFile(path, content);
+    return res.json({runner: runner.name, path, res: 'written'});
+  }catch(error){
+    next(error)
+  }
+});
+
 router.get('/:runner', async (req, res, next)=>{
   try{
     const info = await workerManager.runnerInfoAnywhere(req.params.runner);

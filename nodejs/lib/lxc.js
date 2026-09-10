@@ -145,6 +145,63 @@ class LXC{
 		}
 	}
 
+	/*
+		List files in a directory on the runner. Returns an array of
+		{name, type, size} entries (type is 'dir' or 'file').
+	*/
+	async listFiles(dir='/tmp'){
+		try{
+			const b64 = Buffer.from(`ls -la "${dir}"`).toString('base64');
+			const res = await this.sysExec(
+				`~/.local/bin/lxc-attach -n "${this.name}" --clear-env -- bash -c 'echo "${b64}" | base64 --decode | bash'`
+			);
+			const lines = (res.stdout || '').split('\n').filter(Boolean);
+			// Skip the "total N" line and the . / .. entries.
+			return lines.slice(1).filter(l => !/^\s*$/.test(l)).map(l => {
+				const parts = l.split(/\s+/);
+				return {
+					name: parts.slice(8).join(' '),
+					type: parts[0].startsWith('d') ? 'dir' : 'file',
+					size: Number(parts[4]) || 0,
+				};
+			});
+		}catch(error){
+			throw error;
+		}
+	}
+
+	/*
+		Read a file on the runner, returning its contents as a string.
+	*/
+	async readFile(path){
+		try{
+			const b64 = Buffer.from(`cat "${path}"`).toString('base64');
+			const res = await this.sysExec(
+				`~/.local/bin/lxc-attach -n "${this.name}" --clear-env -- bash -c 'echo "${b64}" | base64 --decode | bash'`
+			);
+			return res.stdout || '';
+		}catch(error){
+			throw error;
+		}
+	}
+
+	/*
+		Write a file on the runner. `content` is written to `path`.
+	*/
+	async writeFile(path, content){
+		try{
+			const b64 = Buffer.from(content).toString('base64');
+			const cmd = `mkdir -p "$(dirname "${path}")" && echo "${b64}" | base64 --decode > "${path}"`;
+			const cmdB64 = Buffer.from(cmd).toString('base64');
+			await this.sysExec(
+				`~/.local/bin/lxc-attach -n "${this.name}" --clear-env -- bash -c 'echo "${cmdB64}" | base64 --decode | bash'`
+			);
+			return true;
+		}catch(error){
+			throw error;
+		}
+	}
+
 	async info(){
 		try{
 			let info = {};
