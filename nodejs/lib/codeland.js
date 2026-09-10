@@ -258,7 +258,18 @@ class CodeLandWorker{
 			return runner;
 		}catch(error){
 			this.__runnerSetStatus(runner || name, 'oven:error',{error});
-			if(runner) await runner.destroyEphemeral();
+			// Always attempt cleanup, even if startEphemeral threw before
+			// returning a runner object. A failed start can leave a container
+			// directory behind; destroy by name to avoid leaking zombies.
+			try{
+				if(runner){
+					await runner.destroyEphemeral();
+				}else{
+					await this.runnerTemplate.destroyEphemeral(name);
+				}
+			}catch(cleanupError){
+				console.error(`cleanup failed for ${name}:`, cleanupError.message);
+			}
 			throw error;
 		}finally{
 			--this.runnersCooking
