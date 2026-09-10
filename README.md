@@ -2,58 +2,23 @@
 
 **Author:** William Mantly (wmantly@gmail.com)
 
+A self-hosted service for running untrusted code on demand in LXC containers.
+A manager (this repo) tracks one or more worker hosts, keeps a pre-warmed pool
+of containers ready to hand out, and exposes an HTTP API plus a web playground
+for one-shot, pooled, and long-lived persistent runners.
+
 ## Table of Contents
 
-- [Introduction](#introduction)
 - [Project Overview](#project-overview)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-- [Usage](#usage)
+- [Runner Types](#runner-types)
+- [Features](#features)
 - [API Documentation](#api-documentation)
+- [Multi-worker setup](#multi-worker-setup)
 - [Contributing](#contributing)
 - [License](#license)
-- [Acknowledgments](#acknowledgments)
-
-## Introduction
-
-The CodeLand Runner Management System is a robust and versatile platform
-designed to simplify the management and execution of code on remote runners. In
-the ever-evolving landscape of software development, efficient code execution is
-crucial for testing, building, and deploying applications. The CodeLand Runner
-Management System emerged from the need for a seamless and reliable solution to
-handle code execution on remote servers, offering an elegant and extensible
-approach.
-
-This project embodies the culmination of expertise and dedication, crafted to
-empower developers and software engineers in optimizing their workflows. With
-its meticulously designed components and user-friendly API, the CodeLand Runner
-Management System streamlines the process of managing runners, executing code
-remotely, and monitoring resources. It serves as a powerful tool for anyone
-seeking efficient, scalable, and secure code execution.
-
-**Code Quality and Expertise:**
-
-The CodeLand Runner Management System is a testament to the author's commitment
-to delivering high-quality code. William Mantly (wmantly@gmail.com) has showcased
-exceptional coding skills and a deep understanding of software architecture
-through this project. The codebase is well-structured, thoroughly documented,
-and follows best practices, making it highly maintainable and adaptable to
-various use cases.
-
-**Author William Mantly:**
-
-William Mantly (wmantly@gmail.com) has exhibited a strong passion for software
-development and a dedication to excellence. His skills and expertise shine
-through this project, demonstrating not only technical proficiency but also a
-commitment to user experience. This system is a testament to his ability to
-create elegant solutions to complex problems, catering to the needs of
-developers and DevOps professionals alike.
-
-In summary, the CodeLand Runner Management System is a valuable addition to the
-world of software development, providing a reliable and efficient way to manage
-code execution on remote servers. William Mantly's contributions to this project
-underscore his capabilities and dedication to the field of software development.
 
 ## Project Overview
 
@@ -64,6 +29,12 @@ underscore his capabilities and dedication to the field of software development.
 - **LXC Container Management**: The LXC class facilitates the creation, management, and interaction with Linux containers (LXC) for code execution.
 
 - **CodeLand Worker**: The CodeLandWorker class is the heart of the system, responsible for creating and managing runners, monitoring memory usage, and executing code on runners.
+
+- **Worker Manager**: The WorkerManager class tracks one CodeLandWorker per
+  registered host, routes requests for a named runner to whichever worker
+  currently has it (via a Redis-backed registry), migrates persistent
+  runners between workers, and rehydrates persistent runners from the
+  registry on restart.
 
 - **API**: The API allows you to interact with the CodeLand Worker, providing endpoints to retrieve runner information, execute code, and manage runner resources.
 
@@ -115,7 +86,9 @@ The system manages three kinds of runners, all LXC containers cloned from a
 
 - **Structured runs** — `POST /runner/run/structured` returns `stdout`,
   `stderr`, and `exit` separately, and accepts `language`, `stdin`, `files[]`,
-  `timeout`, and `memLimit`.
+  `timeout`, and `memLimit`. `POST /runner/:runner/run/structured` is the same,
+  but runs on an existing named runner (persistent or reserved via
+  `POST /runner/reserve`) instead of popping a fresh one.
 - **Streaming runs** — `POST /runner/run/stream` streams output to the client
   as it is produced (chunked), so long jobs don't appear to hang. Streaming is
   also available on persistent (`/runner/:runner/run/stream`) and any named
@@ -224,7 +197,3 @@ follow these guidelines:
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE)
 file for details.
-
-## Acknowledgments
-
-- [ChatGPT](https://chat.openai.com/) for contributing to the documentation.
