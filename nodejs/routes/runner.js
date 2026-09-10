@@ -56,6 +56,8 @@ router.post('/run/structured', async (req, res, next)=>{
     const {getBashLine} = require('../lib/interpreters');
     const time = Number.isInteger(Number(req.body.timeout)) ? req.body.timeout : undefined;
     const memLimit = req.body.memLimit;
+    // How long to wait for a runner if the oven is empty (default 15s).
+    const queueMs = Number.isInteger(Number(req.body.queue)) ? req.body.queue : 15000;
     const code = req.body.code;
     if(typeof code !== 'string' || !code.length){
       const e = new Error('code is required');
@@ -106,7 +108,7 @@ router.post('/run/structured', async (req, res, next)=>{
       fullBashLine = preamble + `echo "${Buffer.from(code).toString('base64')}" | base64 --decode | bash`;
     }
 
-    const result = await clworker.runnerRunOnceStructured(code, time, memLimit, fullBashLine);
+    const result = await clworker.runnerRunOnceStructured(code, time, memLimit, fullBashLine, queueMs);
     clworker.historyAdd({runner: result.runner, duration: result.duration, ok: true, exit: result.exit});
     res.json(result);
   }catch(error){

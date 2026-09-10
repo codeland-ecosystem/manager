@@ -465,6 +465,25 @@ class CodeLandWorker{
 	}
 
 	/*
+		Get a runner for use, waiting up to `timeoutMs` for one to become
+		available (the oven may be cooking). Polls every 500ms. Throws
+		runnerNotAvailable if none appears in time.
+	*/
+	async runnerPopWait(timeoutMs=15000){
+		const deadline = Date.now() + timeoutMs;
+		while(Date.now() < deadline){
+			try{
+				return this.runnerPop();
+			}catch(error){
+				if(error.name !== 'runnerNotAvailable') throw error;
+			}
+			await sleep(500);
+		}
+		this.__runnerSetStatus('__none__', this.errors.runnerNotAvailable());
+		throw this.errors.runnerNotAvailable();
+	}
+
+	/*
 		Return the named runner, and throw an error if the named runner is not
 		found.
 	*/
@@ -643,11 +662,12 @@ class CodeLandWorker{
 	/*
 		Execute code on a fresh runner with a structured result, then destroy
 		the runner. Accepts an optional bashLine (interpreter template).
+		Waits up to `queueMs` for a runner if the oven is empty.
 	*/
-	async runnerRunOnceStructured(code, time=60, memLimit, bashLine){
+	async runnerRunOnceStructured(code, time=60, memLimit, bashLine, queueMs=15000){
 		let runner;
 		try{
-			runner = await this.runnerPop();
+			runner = await this.runnerPopWait(queueMs);
 			if(memLimit){
 				await runner.setMemLimit(memLimit);
 			}
