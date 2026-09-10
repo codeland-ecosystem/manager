@@ -354,6 +354,27 @@ $(document).ready(function(){
 	// Populate the persistent-runner list in the dropdown when opened.
 	loadPersistentRunners();
 
+	$('#previewPort').on('click', function(event){
+		let runner = app.codeland.getRunner();
+		if(!runner.name){
+			return app.util.actionMessage(
+				`Run something first to get a runner.`,
+				$('#codeland-results'),
+				'warning',
+			);
+		}
+		let port = prompt('Port to preview (e.g. 8080):');
+		if(!port) return;
+		port = port.trim();
+		if(!/^\d+$/.test(port)){
+			return alert('Port must be a number');
+		}
+		// The nginx proxy routes <port>_<runner>.<domain> to the runner's port.
+		// runner.domain already includes the runner name prefix.
+		let url = `${location.protocol}//${port}_${runner.domain}`;
+		window.open(url, '_blank');
+	});
+
 	$('#runnerRecycle').on('click', function(event){
 		app.util.actionMessage(
 			`Getting new runner...`,
@@ -609,6 +630,10 @@ $(document).ready(function(){
 
 
 					<div class=" dropdown dropleft results-buttons d-inline">
+						<button id="previewPort" class="btn btn-outline-primary btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Open a published port in a new tab">
+							<i class="fa-solid fa-up-right-from-square"></i>
+							Preview
+						</button>
 						<button id="runnerRecycle" class="btn btn-outline-warning btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Get a new runner">
 							<i class="fa-solid fa-recycle"></i>
 						</button>
