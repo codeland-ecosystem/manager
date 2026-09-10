@@ -76,6 +76,15 @@ for(const host of (conf.workers || [])){
       console.error('untracked sweep error:', error);
     }
   }, 5*60*1000, clworker);
+  // Reclaim runners idle too long (default 15 min) so the oven stays full
+  // without users having to think about it.
+  setInterval(async (clworker)=>{
+    try{
+      await clworker.reclaimIdleRunners(15*60*1000);
+    }catch(error){
+      console.error('idle reclaim error:', error);
+    }
+  }, 60*1000, clworker);
   // Rehydrate persistent runners from the registry so they are usable again
   // after a manager restart (the in-memory __runners map is empty on boot).
   try{

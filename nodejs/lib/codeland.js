@@ -97,6 +97,12 @@ class CodeLandWorker{
 			runner.lastStatus = {status, ...message};
 			if(!runner.statusHistory) runner.statusHistory = []
 			runner.statusHistory.push({status, ...message})
+
+			// Track last activity for idle reclaim. A runner is "used" when it
+			// transitions to inUse/execute; it becomes idle when available.
+			if(status === 'inUse' || status === 'execute'){
+				runner.lastUsed = new Date().getTime();
+			}
 		}	
 
 	}
@@ -447,6 +453,25 @@ class CodeLandWorker{
 		}
 
 		return runners;
+	}
+
+	/*
+		Reclaim runners that have been idle (available) for too long. Persistent
+		runners are exempt. Returns the number reclaimed.
+	*/
+	async reclaimIdleRunners(idleMs=15*60*1000){
+		const now = new Date().getTime();
+		let reclaimed = 0;
+		for(const [name, runner] of Object.entries(this.__runners)){
+			if(runner.persistent) continue;
+			if(runner.lastStatus.status !== 'available') continue;
+			const lastUsed = runner.lastUsed || now;
+			if(now - lastUsed < idleMs) continue;
+			this.__log('runner:reclaim', {runner: name, idleMs: now - lastUsed});
+			await this.runnerFree(runner, false);
+			reclaimed++;
+		}
+		return reclaimed;
 	}
 
 	/*
