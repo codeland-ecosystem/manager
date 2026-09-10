@@ -59,6 +59,11 @@
 		    	Login
 		    </a>
 
+				<button id="cl-token-button" class="btn btn-outline-info my-2 my-sm-0 mr-2" style="display: none;">
+					<i class="fas fa-key"></i>
+					API Token
+				</button>
+
 				<button id="cl-logout-button" class="btn btn-outline-danger my-2 my-sm-0" onclick="app.auth.logOut(e => window.location.href='/')" style="display: none;">
 					<i class="fas fa-sign-out"></i>
 					Log Out
@@ -69,6 +74,37 @@
 		    </div>
 		  </div>
 		</nav>
+
+		<!-- Shows a freshly minted API token so it can be copied. The token is
+		     only ever returned once by the server, so this modal is the only
+		     place to see it. -->
+		<div class="modal" id="apiTokenModal" tabindex="-1" role="dialog" aria-hidden="true">
+			<div class="modal-dialog" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title"><i class="fas fa-key"></i> API Token</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+					</div>
+					<div class="modal-body">
+						<p class="text-muted small">
+							Send this as the <code>auth-token</code> header to call the API
+							from a script or CI. It won't be shown again -- mint a new one
+							if you lose it.
+						</p>
+						<div class="input-group">
+							<input type="text" id="apiTokenValue" class="form-control" readonly>
+							<div class="input-group-append">
+								<button class="btn btn-outline-success" id="apiTokenCopy" type="button">
+									<i class="fa-solid fa-copy"></i> Copy
+								</button>
+							</div>
+						</div>
+						<div id="apiTokenCopyStatus" class="small text-success mt-1" style="display:none;">Copied!</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<script type="text/javascript">
 			$(document).ready(function(){
 				// window.location.pathname.toLocaleLowerCase()
@@ -84,8 +120,35 @@
 
 				// Set the correct login/logout button
 				app.auth.isLoggedIn(function(error, data){
-					if(data) $('#cl-logout-button').show();
-					else $('#cl-login-button').show();
+					if(data){
+						$('#cl-logout-button').show();
+						$('#cl-token-button').show();
+					}else{
+						$('#cl-login-button').show();
+					}
+				});
+
+				$('#cl-token-button').on('click', function(){
+					app.auth.createToken(function(err, data){
+						if(err) return alert((data && data.message) || err);
+						$('#apiTokenValue').val(data.token);
+						$('#apiTokenCopyStatus').hide();
+						$('#apiTokenModal').modal('show');
+					});
+				});
+
+				$('#apiTokenCopy').on('click', function(){
+					const val = $('#apiTokenValue').val();
+					const showCopied = function(){
+						$('#apiTokenCopyStatus').stop(true).show().delay(2000).fadeOut();
+					};
+					if(navigator.clipboard && navigator.clipboard.writeText){
+						navigator.clipboard.writeText(val).then(showCopied, function(){
+							$('#apiTokenValue').get(0).select();
+						});
+					}else{
+						$('#apiTokenValue').get(0).select();
+					}
 				});
 
 			});

@@ -220,12 +220,21 @@ app.auth = (function(app) {
 		window.location.href = location.href.replace(location.origin+'/login', '') || '/'
 	}
 
+	/*
+		Mint a new API token for the current (already logged-in) user. Useful
+		for scripts/CI/CLI use of the API outside the browser session.
+	*/
+	function createToken(callback){
+		app.api.post('auth/token', {}, callback);
+	}
+
 	return {
 		getToken: getToken,
 		setToken: setToken,
 		isLoggedIn: isLoggedIn,
 		logIn: logIn,
 		logOut: logOut,
+		createToken: createToken,
 		makeUserFromInvite: makeUserFromInvite,
 		forceLogin,
 		logInRedirect,
