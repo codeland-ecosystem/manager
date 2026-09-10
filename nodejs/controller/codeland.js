@@ -49,8 +49,9 @@ const workerManager = new WorkerManager({
   clworkerConfig: conf.clworker,
 });
 
-// Register the primary worker.
-workerManager.addWorker(conf.ssh.host);
+// Register the primary worker. Use the existing clworker instance so the
+// manager can find ephemeral runners that live on the primary worker.
+workerManager.registerWorker(conf.ssh.host, clworker);
 
 // Register any additional workers from config.
 for(const host of (conf.workers || [])){

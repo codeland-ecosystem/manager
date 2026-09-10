@@ -49,6 +49,17 @@ class WorkerManager{
 		return worker;
 	}
 
+	/*
+		Register an existing worker instance (e.g. the primary clworker that
+		already holds ephemeral runners) under a host. This lets
+		getRunnerAnywhere find ephemeral runners that live on the primary
+		worker, not just the manager's own worker instances.
+	*/
+	registerWorker(host, worker){
+		this.workers[host] = worker;
+		return worker;
+	}
+
 	getWorker(host){
 		return this.workers[host];
 	}
