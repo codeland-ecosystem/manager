@@ -88,8 +88,8 @@ All endpoints live under `/api/v1`.
   **Request Body:**
   - `name` (string): the runner name (registry key).
   - `memLimit` (string|int, optional).
-  - `worker` (string, optional): host to create on; defaults to the primary
-    worker (`conf.ssh.host`).
+  - `worker` (string, optional): host to create on. If omitted, the runner is
+    placed on the least-loaded worker automatically.
 
   **Response:**
   - `runner` (string): the created runner name.

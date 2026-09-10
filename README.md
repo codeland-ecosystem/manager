@@ -132,6 +132,8 @@ The system manages three kinds of runners, all LXC containers cloned from a
   recent job history.
 - **Oven controls** — pause/resume cooking, set the standby target, and drain
   idle runners via `POST /worker/oven/*`.
+- **Least-memory placement** — persistent runners are auto-placed on the
+  least-loaded worker when no `worker` is specified.
 
 ## API Documentation
 
