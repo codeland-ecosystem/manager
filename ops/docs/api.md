@@ -307,6 +307,37 @@ All endpoints live under `/api/v1`.
   - `oven` (object): cooking state and message.
   - `history` (array): recent jobs `{ when, runner, duration, ok, exit }`.
 
+### Oven Controls
+
+- **POST `/api/v1/worker/oven/pause`**
+
+  Pause cooking new runners. **Response:** `{ "paused": true }`
+
+- **POST `/api/v1/worker/oven/resume`**
+
+  Resume cooking. **Response:** `{ "paused": false }`
+
+- **POST `/api/v1/worker/oven/min`**
+
+  Set the standby runner target (`minAvailableRunners`).
+
+  **Request Body:**
+  - `min` (int, required): the new standby target.
+
+  **Response:** `{ "minAvailableRunners": 5 }`
+
+- **POST `/api/v1/worker/oven/drain`**
+
+  Stop cooking and free all idle (available) runners so the pool empties.
+  In-use runners are left alone.
+
+  **Response:** `{ "draining": true, "freed": 3 }`
+
+- **POST `/api/v1/worker/oven/undrain`**
+
+  Cancel a drain and resume normal cooking. **Response:**
+  `{ "draining": false }`
+
 ## Common Errors
 
 | Code | Name | Meaning |

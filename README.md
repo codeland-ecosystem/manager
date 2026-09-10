@@ -130,6 +130,8 @@ The system manages three kinds of runners, all LXC containers cloned from a
   their current worker.
 - **Metrics** — `GET /worker/metrics` exposes runner counts, oven state, and
   recent job history.
+- **Oven controls** — pause/resume cooking, set the standby target, and drain
+  idle runners via `POST /worker/oven/*`.
 
 ## API Documentation
 
