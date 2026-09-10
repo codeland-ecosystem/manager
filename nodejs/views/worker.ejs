@@ -136,6 +136,10 @@
 
 		app.api.get('runner', function(err, data){
 			for(runner of data.runners){
+				// Persistent runners already have their own panel below (loaded
+				// from the registry); skip them here so they don't also show up
+				// as if they were idle/in-use pool capacity.
+				if(runner.persistent) continue;
 				if(runner.lastStatus.status !== 'available'){
 					$.scope.runnerInUse.push({...runner, ...runner.lastStatus})
 				}else{
@@ -180,11 +184,15 @@
 
 		app.subscribe('cl:worker:runner:status:available', function(data, topic){
 			// console.log(topic, data)
+			// Persistent runners transition to "available" once at creation --
+			// they belong in the Persistent Runners panel, not this pool list.
+			if(data.persistent) return;
 			$.scope.runnerAvailable.push({name: data.runner})
 		});
 
 		app.subscribe('cl:worker:runner:status:inUse', function(data, topic){
 			// console.log(topic)
+			if(data.persistent) return;
 			$.scope.runnerAvailable.splice(data.runner, 1)
 			// console.log('inUse', data.runner, topic.split(':')[4])
 			if($.scope.runnerInUse.indexOf(data.runner) === -1) $.scope.runnerInUse.push({name: data.runner})
@@ -206,6 +214,7 @@
 
 		app.subscribe(/^cl:worker:runner:status:/, function(data, topic){
 			// console.log('regex', topic)
+			if(data.persistent) return;
 			topic = topic.split(':')
 
 			if(data.duration){

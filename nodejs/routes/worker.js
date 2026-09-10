@@ -47,8 +47,12 @@ router.delete('/zombies', (req, res, next)=>{
 router.get('/metrics', async (req, res, next)=>{
 	try{
 		const runners = Object.values(clworker.__runners);
-		const available = runners.filter(r => r.lastStatus && r.lastStatus.status === 'available').length;
-		const inUse = runners.filter(r => r.lastStatus && r.lastStatus.status === 'inUse').length;
+		// Persistent runners share this map (for name lookup) but aren't part
+		// of the ephemeral/pooled rotation -- exclude them here the same way
+		// listAvailableRunners/runnerPop do, so the count matches pool reality.
+		const pooled = runners.filter(r => !r.persistent);
+		const available = pooled.filter(r => r.lastStatus && r.lastStatus.status === 'available').length;
+		const inUse = pooled.filter(r => r.lastStatus && r.lastStatus.status === 'inUse').length;
 		const cooking = clworker.runnersCooking || 0;
 
 		res.json({

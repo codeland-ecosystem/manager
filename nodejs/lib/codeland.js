@@ -86,6 +86,7 @@ class CodeLandWorker{
 	__runnerSetStatus(runner, status, message){
 		this.__log(`runner:status:${status}`, {
 			runner: runner instanceof LXC ? runner.name : runner,
+			persistent: runner instanceof LXC ? !!runner.persistent : undefined,
 			...(message || {}),
 		});
 
@@ -493,6 +494,10 @@ class CodeLandWorker{
 		this.ovenPaused = false;
 		let freed = 0;
 		for(const [name, runner] of Object.entries(this.__runners)){
+			// Persistent runners share this map (for name lookup) but must
+			// never be destroyed by a pool-draining operation -- only by an
+			// explicit stop/free naming that runner.
+			if(runner.persistent) continue;
 			if(runner.lastStatus.status === 'available'){
 				await this.runnerFree(runner, false);
 				freed++;
@@ -534,10 +539,17 @@ class CodeLandWorker{
 		this.__runnerSetStatus(name, 'free:success');
 	}
 
+	/*
+		Runners eligible for the ephemeral/pooled rotation (runnerPop, the oven
+		sizing math). Persistent runners live in the same __runners map --
+		WorkerManager.getRunnerAnywhere looks them up there by name -- but must
+		never be handed out by runnerPop or counted as pool standby capacity.
+	*/
 	listAvailableRunners(){
 		let runners = [];
 
 		for(let [name, runner] of Object.entries(this.__runners)){
+			if(runner.persistent) continue;
 			if(runner.lastStatus.status == 'available'){
 				runners.push(runner);
 			}
@@ -566,10 +578,13 @@ class CodeLandWorker{
 	}
 
 	/*
-		Get a runner for use.
+		Get a runner for use. Only pops ephemeral/pooled runners -- persistent
+		runners share this map (for name lookup) but must be reached only by
+		name (POST /runner/:runner/...), never handed out here.
 	*/
 	runnerPop(){
 		for(let [name, runner] of Object.entries(this.__runners)){
+			if(runner.persistent) continue;
 			if(runner.lastStatus.status == 'available'){
 				this.__runnerSetStatus(runner, 'inUse');
 

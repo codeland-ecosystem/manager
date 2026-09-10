@@ -65,6 +65,7 @@ router.get('/', async(req, res, next)=>{
       runners.push({
         name: name,
         domain: runner.domain,
+        persistent: !!runner.persistent,
         lastStatus: runner.lastStatus || '__none__',
         ...'detail' in req.query ? {
           ...(await runner.info()),
