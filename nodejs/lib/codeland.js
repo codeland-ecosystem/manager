@@ -540,16 +540,19 @@ class CodeLandWorker{
 			}
 
 			// Wrap: run the command, tee stdout/stderr to files, capture exit.
-			// Build the JSON with a heredoc to avoid printf %s escaping issues
-			// through the multiple shell layers.
+			// crunner appends " 2>&1|base64" to the code, so the JSON must be
+			// the LAST thing printed (crunner base64-encodes the final output).
+			// Build the JSON into a variable, clean up, then echo it last.
 			const wrapper = `
 				OUT=$(mktemp); ERR=$(mktemp);
 				{ ${runCmd}; } >"$OUT" 2>"$ERR";
 				EXIT=$?;
-				cat <<JSON
+				RESULT=$(cat <<JSON
 				{"stdout":"$(base64 -w0 <"$OUT")","stderr":"$(base64 -w0 <"$ERR")","exit":$EXIT}
 				JSON
-				rm -f "$OUT" "$ERR";
+				)
+				rm -f "$OUT" "$ERR"
+				echo "$RESULT"
 			`;
 
 			let res = await axios.post(`http://${this.ssh.host}/`, {
