@@ -309,6 +309,37 @@
 			alert(`Migrated ${name} to ${data.worker}`);
 		});
 	}
+
+	function ovenPause(){
+		app.api.post('worker/oven/pause', {}, function(err, data){
+			if(err) return alert((data&&data.message)||err);
+			alert('Oven paused');
+		});
+	}
+
+	function ovenResume(){
+		app.api.post('worker/oven/resume', {}, function(err, data){
+			if(err) return alert((data&&data.message)||err);
+			alert('Oven resumed');
+		});
+	}
+
+	function ovenSetMin(){
+		let n = prompt('Standby runner target (minAvailableRunners):');
+		if(n === null) return;
+		app.api.post('worker/oven/min', {min: Number(n)}, function(err, data){
+			if(err) return alert((data&&data.message)||err);
+			alert(`Standby target set to ${data.minAvailableRunners}`);
+		});
+	}
+
+	function ovenDrain(){
+		if(!confirm('Drain all idle runners? (stops cooking and frees the pool)')) return;
+		app.api.post('worker/oven/drain', {}, function(err, data){
+			if(err) return alert((data&&data.message)||err);
+			alert(`Drained ${data.freed} idle runners`);
+		});
+	}
 </script>
 <div class="row" style="display:none">
 
@@ -385,6 +416,21 @@
 					<span> Status: <b>{{oven.status}}</b> </span> <br/>
 					<span> Message: <b>{{oven.message}}</b> </span> <br/>
 				</p>
+
+				<div class="btn-group btn-group-sm mb-2">
+					<button class="btn btn-outline-warning btn-sm" onclick="ovenPause()" title="Pause cooking">
+						<i class="fa-solid fa-pause"></i> Pause
+					</button>
+					<button class="btn btn-outline-success btn-sm" onclick="ovenResume()" title="Resume cooking">
+						<i class="fa-solid fa-play"></i> Resume
+					</button>
+					<button class="btn btn-outline-info btn-sm" onclick="ovenSetMin()" title="Set standby target">
+						<i class="fa-solid fa-sliders"></i> Min
+					</button>
+					<button class="btn btn-outline-danger btn-sm" onclick="ovenDrain()" title="Drain idle runners">
+						<i class="fa-solid fa-droplet"></i> Drain
+					</button>
+				</div>
 
 				<span>
 					<button class="btn btn-sm btn-outline-danger" onclick="app.codeland.worker.killZombies()">

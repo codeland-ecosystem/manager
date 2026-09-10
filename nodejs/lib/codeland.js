@@ -176,6 +176,11 @@ class CodeLandWorker{
 		// How many runners should be created regardless of memory usage
 		this.minAvailableRunners = args.minAvailableRunners || 3;
 
+		// Oven controls. `paused` stops cooking new runners; `drain` stops
+		// cooking AND frees idle runners so the pool empties.
+		this.ovenPaused = false;
+		this.ovenDrain = false;
+
 		this.startedAt = new Date();
 
 		// Hold the list of current runners
@@ -360,6 +365,13 @@ class CodeLandWorker{
 	async runnerOven(srelfManagerDelay){
 		while(true){
 			try{
+				// If the oven is paused or draining, don't cook new runners.
+				if(this.ovenPaused || this.ovenDrain){
+					this.__ovenSetStatus('paused', this.ovenDrain ? 'Draining: cooking paused' : 'Cooking paused');
+					await sleep(3000);
+					continue;
+				}
+
 				this.__ovenSetStatus('off', 'Starting oven check...')
 				// Get the current system memory
 				let memory = await this.ssh.memory();
@@ -419,6 +431,60 @@ class CodeLandWorker{
 			}
 			await sleep(3000)
 		}
+	}
+
+	/*
+		Oven controls. Pause stops cooking new runners; resume re-enables it.
+		Set minAvailableRunners to change the standby target.
+	*/
+	ovenPause(){
+		this.ovenPaused = true;
+		this.ovenDrain = false;
+		this.__ovenSetStatus('paused', 'Cooking paused');
+		return {paused: true};
+	}
+
+	ovenResume(){
+		this.ovenPaused = false;
+		this.ovenDrain = false;
+		this.__ovenSetStatus('off', 'Cooking resumed');
+		return {paused: false};
+	}
+
+	ovenSetMin(n){
+		n = Number(n);
+		if(!Number.isInteger(n) || n < 0) throw Object.assign(new Error('minAvailableRunners must be a non-negative integer'), {status: 400});
+		this.minAvailableRunners = n;
+		this.__ovenSetStatus('off', `minAvailableRunners set to ${n}`);
+		return {minAvailableRunners: n};
+	}
+
+	/*
+		Drain: stop cooking and free all idle (available) runners so the pool
+		empties. In-use runners are left alone.
+	*/
+	async ovenDrainNow(){
+		this.ovenDrain = true;
+		this.ovenPaused = false;
+		let freed = 0;
+		for(const [name, runner] of Object.entries(this.__runners)){
+			if(runner.lastStatus.status === 'available'){
+				await this.runnerFree(runner, false);
+				freed++;
+			}
+		}
+		this.__ovenSetStatus('draining', `Drained ${freed} idle runners`);
+		return {draining: true, freed};
+	}
+
+	/*
+		Cancel a drain and resume normal cooking.
+	*/
+	ovenUndrain(){
+		this.ovenDrain = false;
+		this.ovenPaused = false;
+		this.__ovenSetStatus('off', 'Drain cancelled, cooking resumed');
+		return {draining: false};
 	}
 
 	/*

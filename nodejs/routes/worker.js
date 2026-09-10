@@ -70,4 +70,47 @@ router.get('/metrics', async (req, res, next)=>{
 	}
 })
 
+/*
+	Oven controls: pause/resume cooking, set the standby target, and drain.
+*/
+router.post('/oven/pause', (req, res, next)=>{
+	try{
+		res.json(clworker.ovenPause());
+	}catch(error){
+		next(error);
+	}
+});
+
+router.post('/oven/resume', (req, res, next)=>{
+	try{
+		res.json(clworker.ovenResume());
+	}catch(error){
+		next(error);
+	}
+});
+
+router.post('/oven/min', (req, res, next)=>{
+	try{
+		res.json(clworker.ovenSetMin(req.body.min));
+	}catch(error){
+		next(error);
+	}
+});
+
+router.post('/oven/drain', async (req, res, next)=>{
+	try{
+		res.json(await clworker.ovenDrainNow());
+	}catch(error){
+		next(error);
+	}
+});
+
+router.post('/oven/undrain', (req, res, next)=>{
+	try{
+		res.json(clworker.ovenUndrain());
+	}catch(error){
+		next(error);
+	}
+});
+
 module.exports = router;
