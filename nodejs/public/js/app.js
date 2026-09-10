@@ -476,9 +476,22 @@ app.codeland = (function(app){
 		app.api.get('runner/registry', callback);
 	}
 
+	function listFiles(name, dir, callback){
+		app.api.get(`runner/${name}/files?dir=${encodeURIComponent(dir)}`, callback);
+	}
+
+	function readFile(name, path, callback){
+		app.api.get(`runner/${name}/files/content?path=${encodeURIComponent(path)}`, callback);
+	}
+
+	function writeFile(name, path, content, callback){
+		app.api.post(`runner/${name}/files`, {path, content}, callback);
+	}
+
 	return {once, getRunner, call, kill, persistentRun, info, setRunner, newRunner,
 		makePersistent, runPersistent, stopPersistent, migratePersistent, listRegistry,
-		onceStructured, reserve, callStructured, sessionRunStructured};
+		onceStructured, reserve, callStructured, sessionRunStructured,
+		listFiles, readFile, writeFile};
 
 })(app);
 
