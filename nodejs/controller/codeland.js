@@ -66,6 +66,15 @@ for(const host of (conf.workers || [])){
     }catch{}
   }, 2000, clworker)
   await clworker.deleteUntrackedRunners();
+  // Periodically sweep untracked runners so leaked container dirs from failed
+  // cooks (or crashes) don't accumulate indefinitely.
+  setInterval(async (clworker)=>{
+    try{
+      await clworker.deleteUntrackedRunners();
+    }catch(error){
+      console.error('untracked sweep error:', error);
+    }
+  }, 5*60*1000, clworker);
   // Rehydrate persistent runners from the registry so they are usable again
   // after a manager restart (the in-memory __runners map is empty on boot).
   try{
