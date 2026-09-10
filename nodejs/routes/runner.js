@@ -191,6 +191,33 @@ router.post('/:runner/run', async (req, res, next)=>{
   }
 });
 
+/*
+	Streaming run on a persistent runner, routed to its current worker.
+*/
+router.post('/:runner/run/stream', async (req, res, next)=>{
+  try{
+    const time = Number.isInteger(Number(req.body.timeout)) ? req.body.timeout : undefined;
+    res.setHeader('Content-Type', 'application/json');
+    await workerManager.runnerRunStreamAnywhere(req.params.runner, req.body.code, res, time);
+  }catch(error){
+    if(!res.headersSent) next(error);
+  }
+});
+
+/*
+	Streaming run on any named runner (persistent or ephemeral), routed to its
+	current worker.
+*/
+router.post('/:runner/stream', async (req, res, next)=>{
+  try{
+    const time = Number.isInteger(Number(req.body.timeout)) ? req.body.timeout : undefined;
+    res.setHeader('Content-Type', 'application/json');
+    await workerManager.runnerRunStreamAnywhere(req.params.runner, req.body.code, res, time);
+  }catch(error){
+    if(!res.headersSent) next(error);
+  }
+});
+
 router.get('/registry', async (req, res, next)=>{
   try{
     const {initOrm} = require('../lib/orm');

@@ -183,6 +183,16 @@ class WorkerManager{
 	}
 
 	/*
+		Stream code on any runner (persistent or ephemeral), routing to the
+		worker that currently hosts it. Output is streamed to `res` as it is
+		produced.
+	*/
+	async runnerRunStreamAnywhere(name, code, res, time){
+		const {worker, runner} = await this.getRunnerAnywhere(name);
+		return worker.runnerRunStream(runner, code, res, time);
+	}
+
+	/*
 		Inspect any runner (persistent or ephemeral), routing to the worker
 		that currently hosts it.
 	*/
