@@ -637,6 +637,53 @@ class CodeLandWorker{
 	}
 
 	/*
+		Execute code on the remote runner and stream the output to the client
+		as it is produced. Uses crunner's streaming mode (chunked transfer
+		encoding). `res` is the Express response; each chunk is written as it
+		arrives. Returns the runner name.
+	*/
+	async runnerRunStream(runner, code, res, time){
+		const startTime = new Date();
+		try{
+			this.__runnerSetStatus(runner, 'execute');
+
+			// Use the raw http module so we can stream the chunked response.
+			const http = require('http');
+			const body = JSON.stringify({code, stream: true});
+			const req = http.request({
+				host: this.ssh.host,
+				port: 80,
+				path: '/',
+				method: 'POST',
+				headers: {
+					'Host': `1500_${runner.name}`,
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(body),
+				},
+				timeout: time ? time*1000 : undefined,
+			}, (upstream) => {
+				// Forward the upstream status and stream the body through.
+				res.status(upstream.statusCode || 200);
+				upstream.pipe(res);
+				upstream.on('end', () => {
+					this.__runnerSetStatus(runner, 'complete', {duration: new Date() - startTime});
+				});
+			});
+			req.on('error', (error) => {
+				this.__runnerSetStatus(runner, 'error', {error});
+				if(!res.headersSent) res.status(502).json({name: 'workerBadGateway', message: error.message});
+				else res.end();
+			});
+			req.write(body);
+			req.end();
+		}catch(error){
+			this.__runnerSetStatus(runner, 'error', {error});
+			if(!res.headersSent) res.status(500).json({name: 'runnerExecutionFailed', message: error.message});
+			else res.end();
+		}
+	}
+
+	/*
 		Execute code on the remote runner and return a structured result with
 		stdout, stderr, and exit code separated. The crunner API merges stderr
 		into stdout and drops the exit code, so we wrap the code in a shell

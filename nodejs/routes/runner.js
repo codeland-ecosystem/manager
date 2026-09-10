@@ -42,6 +42,25 @@ router.post('/run', async (req, res, next)=>{
 });
 
 /*
+	Streaming run. Executes code on a fresh runner and streams the output to
+	the client as it is produced (chunked). The runner is destroyed after.
+*/
+router.post('/run/stream', async (req, res, next)=>{
+  let runner;
+  try{
+    const time = Number.isInteger(Number(req.body.timeout)) ? req.body.timeout : undefined;
+    const queueMs = Number.isInteger(Number(req.body.queue)) ? req.body.queue : 15000;
+    runner = await clworker.runnerPopWait(queueMs);
+    res.setHeader('Content-Type', 'application/json');
+    await clworker.runnerRunStream(runner, req.body.code, res, time);
+  }catch(error){
+    if(!res.headersSent) next(error);
+  }finally{
+    if(runner) await clworker.runnerFree(runner);
+  }
+});
+
+/*
 	Structured one-shot run. Accepts:
 	  - code (string, required)
 	  - language (string, optional): resolves to an interpreter bash_line
