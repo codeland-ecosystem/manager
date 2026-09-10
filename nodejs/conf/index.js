@@ -23,10 +23,20 @@ function load(filePath, required){
 	}
 };
 
-module.exports = extend(
+const conf = extend(
 	true, // enable deep copy
 	load('./base', true),
 	load(`./${environment}`),
 	load('./secrets'),
 	{environment}
 );
+
+// Additional worker hosts can be added via env instead of a committed config
+// file edit: CODELAND_WORKERS is a comma-separated host list, merged with
+// (not replacing) conf.workers from the config files.
+if(process.env.CODELAND_WORKERS){
+	const envWorkers = process.env.CODELAND_WORKERS.split(',').map(h => h.trim()).filter(Boolean);
+	conf.workers = [...new Set([...(conf.workers || []), ...envWorkers])];
+}
+
+module.exports = conf;

@@ -171,9 +171,11 @@ curl /api/v1/runner/registry
 
 ## Multi-worker setup
 
-Add additional worker hosts to `conf.workers` (the primary worker is always
-`conf.ssh.host`). Each worker must mount the same NFS export at `/nfs/runners`
-and have the runner host scripts installed (see the
+Add additional worker hosts to `conf.workers`, or set `CODELAND_WORKERS` to a
+comma-separated host list (merged with `conf.workers`, not a replacement) so
+adding a worker doesn't require a config file edit. The primary worker is
+always `conf.ssh.host`. Each worker must mount the same NFS export at
+`/nfs/runners` and have the runner host scripts installed (see the
 [runner-setup](https://github.com/codeland-ecosystem/runner-setup) repo).
 
 ## Contributing
