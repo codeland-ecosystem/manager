@@ -68,7 +68,7 @@ router.post('/run/structured', async (req, res, next)=>{
       bashLine = getBashLine(req.body.language);
     }
 
-    // Build a preamble that writes any files and pipes stdin.
+    // Build a preamble that writes any files.
     let preamble = '';
     if(Array.isArray(req.body.files) && req.body.files.length){
       for(const f of req.body.files){
@@ -77,14 +77,30 @@ router.post('/run/structured', async (req, res, next)=>{
         preamble += `echo ${b64} | base64 --decode > /tmp/${f.name}; `;
       }
     }
-    if(typeof req.body.stdin === 'string' && req.body.stdin.length){
-      const b64 = Buffer.from(req.body.stdin).toString('base64');
-      preamble += `echo ${b64} | base64 --decode | `;
-    }
 
-    // Combine preamble + interpreter line. If no language, run code as shell.
+    // If stdin is provided, write the code to a file and run it file-based
+    // (the interpreter templates pipe code via stdin, which would conflict
+    // with user stdin). Otherwise use the interpreter template.
     let fullBashLine;
-    if(bashLine){
+    const hasStdin = typeof req.body.stdin === 'string' && req.body.stdin.length;
+    if(hasStdin){
+      const {getFileRun} = require('../lib/interpreters');
+      const ext = {sh:'sh',bash:'sh',python:'py',python3:'py',javascript:'js',node:'js',
+        php:'php',perl:'pl',ruby:'rb',lua:'lua',c:'c',c_ccp:'c','c++':'cpp',c_cpp:'cpp',
+        rust:'rs',go:'go',golang:'go',java:'java',typescript:'ts',csharp:'cs',swift:'swift',
+        r:'r',haskell:'hs',groovy:'groovy',fortran:'f'}[req.body.language] || 'sh';
+      const fileCmd = getFileRun(req.body.language);
+      if(fileCmd){
+        const codeB64 = Buffer.from(code).toString('base64');
+        const stdinB64 = Buffer.from(req.body.stdin).toString('base64');
+        fullBashLine = `${preamble}echo ${codeB64} | base64 --decode > /tmp/code.${ext}; echo ${stdinB64} | base64 --decode | ${fileCmd}`;
+      }else{
+        // No file-based entry; fall back to shell with stdin.
+        const codeB64 = Buffer.from(code).toString('base64');
+        const stdinB64 = Buffer.from(req.body.stdin).toString('base64');
+        fullBashLine = `${preamble}echo ${stdinB64} | base64 --decode | echo ${codeB64} | base64 --decode | bash`;
+      }
+    }else if(bashLine){
       fullBashLine = preamble + bashLine;
     }else{
       fullBashLine = preamble + `echo "${Buffer.from(code).toString('base64')}" | base64 --decode | bash`;

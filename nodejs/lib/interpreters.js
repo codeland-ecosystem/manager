@@ -40,6 +40,40 @@ const interpreters = {
 };
 
 /*
+	File-based run commands, used when stdin is provided (the interpreter
+	templates pipe code via stdin, which would conflict with user stdin). Each
+	entry runs a source file at /tmp/code.<ext>. Falls back to the interpreter
+	template if a language has no file-based entry.
+*/
+const fileRun = {
+	'sh': 'bash /tmp/code.sh',
+	'bash': 'bash /tmp/code.sh',
+	'python': 'python3 /tmp/code.py',
+	'python3': 'python3 /tmp/code.py',
+	'javascript': 'node /tmp/code.js',
+	'node': 'node /tmp/code.js',
+	'php': 'php /tmp/code.php',
+	'perl': 'perl /tmp/code.pl',
+	'ruby': 'ruby /tmp/code.rb',
+	'lua': 'lua /tmp/code.lua',
+	'c': 'gcc -xc /tmp/code.c -o /tmp/code && /tmp/code',
+	'c_ccp': 'gcc -xc /tmp/code.c -o /tmp/code && /tmp/code',
+	'c++': 'g++ -xc++ /tmp/code.cpp -o /tmp/code && /tmp/code',
+	'c_cpp': 'g++ -xc++ /tmp/code.cpp -o /tmp/code && /tmp/code',
+	'rust': 'rustc /tmp/code.rs -o /tmp/code && /tmp/code',
+	'go': 'go run /tmp/code.go',
+	'golang': 'go run /tmp/code.go',
+	'java': 'javac /tmp/code.java && java -cp /tmp code',
+	'typescript': 'ts-node /tmp/code.ts',
+	'csharp': 'mcs /tmp/code.cs -out:/tmp/code.exe && mono /tmp/code.exe',
+	'swift': 'swift /tmp/code.swift',
+	'r': 'Rscript /tmp/code.r',
+	'haskell': 'runhaskell /tmp/code.hs',
+	'groovy': 'groovy /tmp/code.groovy',
+	'fortran': 'gfortran -o /tmp/code /tmp/code.f && /tmp/code',
+};
+
+/*
 	Resolve a language name to its bash_line. Throws a 400 error if unknown.
 */
 function getBashLine(language){
@@ -54,4 +88,12 @@ function getBashLine(language){
 	return line;
 }
 
-module.exports = {interpreters, getBashLine};
+/*
+	Resolve a language to a file-based run command (for stdin support), or
+	null if the language has no file-based entry.
+*/
+function getFileRun(language){
+	return fileRun[language] || null;
+}
+
+module.exports = {interpreters, getBashLine, getFileRun};
