@@ -377,13 +377,20 @@ function loadPersistentRunners(){
 }
 
 function createPersistentRunner(){
-	let name = prompt('Persistent runner name:');
-	if(!name) return;
-	let memLimit = prompt('Memory limit (e.g. 512M, 1G) [optional]:') || undefined;
-	app.codeland.makePersistent({name, memLimit}, function(err, data){
-		if(err) return alert((data && data.message) || err);
-		alert('Created persistent runner: ' + data.runner + ' on ' + data.worker);
-		loadPersistentRunners();
+	// Two chained prompts, same as the old window.prompt() version. Unlike
+	// that version, cancelling the memory-limit step now aborts the whole
+	// thing rather than silently continuing without one -- a more
+	// predictable rule for a multi-step dialog than the old one-off quirk.
+	app.util.promptModal({title: 'Persistent runner name'}, function(name){
+		if(!name) return;
+		app.util.promptModal({title: 'Memory limit', placeholder: 'e.g. 512M, 1G -- optional, leave blank for none'}, function(memLimit){
+			memLimit = memLimit || undefined;
+			app.codeland.makePersistent({name, memLimit}, function(err, data){
+				if(err) return app.util.toast((data && data.message) || err, 'danger');
+				app.util.toast('Created persistent runner: ' + data.runner + ' on ' + data.worker, 'success');
+				loadPersistentRunners();
+			});
+		});
 	});
 }
 
@@ -588,16 +595,17 @@ $(document).ready(function(){
 				'warning',
 			);
 		}
-		let port = prompt('Port to preview (e.g. 8080):');
-		if(!port) return;
-		port = port.trim();
-		if(!/^\d+$/.test(port)){
-			return alert('Port must be a number');
-		}
-		// The nginx proxy routes <port>_<runner>.<domain> to the runner's port.
-		// runner.domain already includes the runner name prefix.
-		let url = `${location.protocol}//${port}_${runner.domain}`;
-		window.open(url, '_blank');
+		app.util.promptModal({title: 'Port to preview', placeholder: 'e.g. 8080'}, function(port){
+			if(!port) return;
+			port = port.trim();
+			if(!/^\d+$/.test(port)){
+				return app.util.toast('Port must be a number', 'danger');
+			}
+			// The nginx proxy routes <port>_<runner>.<domain> to the runner's
+			// port. runner.domain already includes the runner name prefix.
+			let url = `${location.protocol}//${port}_${runner.domain}`;
+			window.open(url, '_blank');
+		});
 	});
 
 	$('#runnerRecycle').on('click', function(event){
@@ -1015,7 +1023,7 @@ $(document).ready(function(){
 					<textarea id="filesEditContent" class="form-control" style="height: 100%; font-family: monospace; font-size: 13px;"></textarea>
 				</div>
 				<div class="modal-footer">
-					<div id="filesEditStatus" class="text-success small mr-auto" style="display:none;">Saved!</div>
+					<div id="filesEditStatus" class="small mr-auto" style="display:none;"></div>
 					<button id="filesEditSave" class="btn btn-success btn-sm">
 						<i class="fa-solid fa-floppy-disk"></i> Save
 					</button>
@@ -1049,6 +1057,21 @@ $(document).ready(function(){
 		filesEditingPath = null;
 		$('#filesEditView').hide();
 		$('#filesBrowseView').show();
+	}
+
+	/*
+		Status line in the edit view's footer -- used for both the transient
+		"Saved!" success and any read/write error, instead of alert().
+	*/
+	function filesEditStatus(message, type){
+		$('#filesEditStatus')
+			.removeClass('text-success text-danger')
+			.addClass(type === 'danger' ? 'text-danger' : 'text-success')
+			.stop(true)
+			.text(message)
+			.show()
+			.delay(type === 'danger' ? 4000 : 1500)
+			.fadeOut();
 	}
 
 	function filesShowEdit(path){
@@ -1115,7 +1138,7 @@ $(document).ready(function(){
 			$('#filesEditContent').prop('disabled', false);
 			if(err){
 				$('#filesEditContent').val('');
-				alert((data && data.message) || err.message || err);
+				filesEditStatus((data && data.message) || err.message || err, 'danger');
 				return;
 			}
 			$('#filesEditContent').val(data.content || '');
@@ -1129,10 +1152,10 @@ $(document).ready(function(){
 		const content = $('#filesEditContent').val();
 		app.codeland.writeFile(runner.name, filesEditingPath, content, function(err, data){
 			if(err){
-				alert((data && data.message) || err.message || err);
+				filesEditStatus((data && data.message) || err.message || err, 'danger');
 				return;
 			}
-			$('#filesEditStatus').stop(true).show().delay(1500).fadeOut();
+			filesEditStatus('Saved!');
 		});
 	}
 
@@ -1157,10 +1180,11 @@ $(document).ready(function(){
 		$('#filesUp').on('click', function(){ filesLoad(filesJoin(filesCurrentDir, '..')); });
 
 		$('#filesNew').on('click', function(){
-			const name = prompt('New file name (relative to ' + filesCurrentDir + '):');
-			if(!name) return;
-			filesShowEdit(filesJoin(filesCurrentDir, name));
-			$('#filesEditContent').val('');
+			app.util.promptModal({title: 'New file name', placeholder: 'relative to ' + filesCurrentDir}, function(name){
+				if(!name) return;
+				filesShowEdit(filesJoin(filesCurrentDir, name));
+				$('#filesEditContent').val('');
+			});
 		});
 
 		$('#filesUploadBtn').on('click', function(){ $('#filesUploadInput').trigger('click'); });
@@ -1175,7 +1199,10 @@ $(document).ready(function(){
 			reader.onload = function(){
 				const path = filesJoin(filesCurrentDir, file.name);
 				app.codeland.writeFile(runner.name, path, reader.result, function(err, data){
-					if(err) return alert((data && data.message) || err.message || err);
+					if(err){
+						$('#filesListStatus').text((data && data.message) || err.message || err);
+						return;
+					}
 					filesLoad(filesCurrentDir);
 				});
 			};

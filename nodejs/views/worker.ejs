@@ -290,63 +290,70 @@
 	});
 
 	function createPersistent(){
-		let name = prompt('Runner name:');
-		if(!name) return;
-		let memLimit = prompt('Memory limit (e.g. 512M, 1G) [optional]:') || undefined;
-		app.util.actionMessage('Creating persistent runner...', $('#persistent-card .actionMessage'), 'warning');
-		app.codeland.makePersistent({name, memLimit}, function(err, data){
-			if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#persistent-card .actionMessage'), 'danger');
-			app.util.actionMessage('', $('#persistent-card .actionMessage'));
-			$.scope.persistentRunners.push({name: data.runner, worker: data.worker, status: 'running'});
+		app.util.promptModal({title: 'Runner name'}, function(name){
+			if(!name) return;
+			app.util.promptModal({title: 'Memory limit', placeholder: 'e.g. 512M, 1G -- optional, leave blank for none'}, function(memLimit){
+				memLimit = memLimit || undefined;
+				app.util.actionMessage('Creating persistent runner...', $('#persistent-card .actionMessage'), 'warning');
+				app.codeland.makePersistent({name, memLimit}, function(err, data){
+					if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#persistent-card .actionMessage'), 'danger');
+					app.util.actionMessage('', $('#persistent-card .actionMessage'));
+					$.scope.persistentRunners.push({name: data.runner, worker: data.worker, status: 'running'});
+				});
+			});
 		});
 	}
 
 	function stopPersistent(name){
-		if(!confirm(`Stop persistent runner ${name}? (keeps NFS state)`)) return;
-		app.codeland.stopPersistent(name, function(err, data){
-			if(err) return alert((data&&data.message)||err);
-			$.scope.persistentRunners.update(name, {status: 'stopped'});
+		app.util.confirmModal(`Stop persistent runner ${name}? (keeps NFS state)`, function(){
+			app.codeland.stopPersistent(name, function(err, data){
+				if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#persistent-card .actionMessage'), 'danger');
+				$.scope.persistentRunners.update(name, {status: 'stopped'});
+			});
 		});
 	}
 
 	function migratePersistent(name){
-		let worker = prompt('Destination worker host:');
-		if(!worker) return;
-		app.codeland.migratePersistent(name, worker, function(err, data){
-			if(err) return alert((data&&data.message)||err);
-			$.scope.persistentRunners.update(name, {worker: data.worker});
-			alert(`Migrated ${name} to ${data.worker}`);
+		app.util.promptModal({title: 'Destination worker host'}, function(worker){
+			if(!worker) return;
+			app.codeland.migratePersistent(name, worker, function(err, data){
+				if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#persistent-card .actionMessage'), 'danger');
+				$.scope.persistentRunners.update(name, {worker: data.worker});
+				app.util.actionMessage(`Migrated ${name} to ${data.worker}`, $('#persistent-card .actionMessage'), 'success');
+			});
 		});
 	}
 
 	function ovenPause(){
 		app.api.post('worker/oven/pause', {}, function(err, data){
-			if(err) return alert((data&&data.message)||err);
-			alert('Oven paused');
+			if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#workerStatusCard .actionMessage'), 'danger');
+			app.util.actionMessage('Oven paused', $('#workerStatusCard .actionMessage'), 'success');
 		});
 	}
 
 	function ovenResume(){
 		app.api.post('worker/oven/resume', {}, function(err, data){
-			if(err) return alert((data&&data.message)||err);
-			alert('Oven resumed');
+			if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#workerStatusCard .actionMessage'), 'danger');
+			app.util.actionMessage('Oven resumed', $('#workerStatusCard .actionMessage'), 'success');
 		});
 	}
 
 	function ovenSetMin(){
-		let n = prompt('Standby runner target (minAvailableRunners):');
-		if(n === null) return;
-		app.api.post('worker/oven/min', {min: Number(n)}, function(err, data){
-			if(err) return alert((data&&data.message)||err);
-			alert(`Standby target set to ${data.minAvailableRunners}`);
+		app.util.promptModal({title: 'Standby runner target', placeholder: 'minAvailableRunners'}, function(n){
+			if(!n) return;
+			app.api.post('worker/oven/min', {min: Number(n)}, function(err, data){
+				if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#workerStatusCard .actionMessage'), 'danger');
+				app.util.actionMessage(`Standby target set to ${data.minAvailableRunners}`, $('#workerStatusCard .actionMessage'), 'success');
+			});
 		});
 	}
 
 	function ovenDrain(){
-		if(!confirm('Drain all idle runners? (stops cooking and frees the pool)')) return;
-		app.api.post('worker/oven/drain', {}, function(err, data){
-			if(err) return alert((data&&data.message)||err);
-			alert(`Drained ${data.freed} idle runners`);
+		app.util.confirmModal('Drain all idle runners? (stops cooking and frees the pool)', function(){
+			app.api.post('worker/oven/drain', {}, function(err, data){
+				if(err) return app.util.actionMessage(`Failed: <b>${(data&&data.message)||err}</b>`, $('#workerStatusCard .actionMessage'), 'danger');
+				app.util.actionMessage(`Drained ${data.freed} idle runners`, $('#workerStatusCard .actionMessage'), 'success');
+			});
 		});
 	}
 </script>

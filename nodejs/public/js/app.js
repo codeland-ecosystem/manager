@@ -256,9 +256,10 @@ app.user = (function(app){
 	}
 
 	function remove(args, callback){
-		if(!confirm('Delete '+ args.uid+ 'user?')) return false;
-		app.api.delete('user/'+ args.uid, function(error, data){
-			callback(error, data);
+		app.util.confirmModal('Delete ' + args.uid + ' user?', function(){
+			app.api.delete('user/'+ args.uid, function(error, data){
+				callback(error, data);
+			});
 		});
 	}
 
@@ -538,10 +539,10 @@ app.util = (function(app){
 	}
 
 	$.fn.serializeObject = function() {
-	    var 
-	        arr = $(this).serializeArray(), 
+	    var
+	        arr = $(this).serializeArray(),
 	        obj = {};
-	    
+
 	    for(var i = 0; i < arr.length; i++) {
 	        if(obj[arr[i].name] === undefined) {
 	            obj[arr[i].name] = arr[i].value;
@@ -555,9 +556,72 @@ app.util = (function(app){
 	    return obj;
 	};
 
+	/*
+		Non-blocking replacement for window.alert() when there's no card in
+		context for actionMessage(). A dismissible notice in the top-right,
+		auto-closing after 6s. Requires #toastStack (rendered once in top.ejs).
+		type: 'success' | 'danger' | 'warning' | 'info'.
+	*/
+	function toast(message, type){
+		type = type || 'info';
+		const $el = $(
+			'<div class="alert alert-' + type + ' alert-dismissible shadow-sm" role="alert">' +
+				message +
+				'<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>' +
+			'</div>'
+		);
+		$('#toastStack').append($el);
+		setTimeout(function(){ $el.alert('close'); }, 6000);
+	}
+
+	/*
+		Non-blocking replacement for window.confirm(). Shows #confirmModal
+		(rendered once in top.ejs) and calls onConfirm() only if the user
+		clicks Confirm -- Cancel/Escape/backdrop-click just close it, same as
+		confirm() returning false, except there's nothing to check: the
+		callback simply never fires.
+	*/
+	function confirmModal(message, onConfirm){
+		$('#confirmModalBody').text(message);
+		$('#confirmModalOk').off('click').on('click', function(){
+			$('#confirmModal').modal('hide');
+			onConfirm();
+		});
+		$('#confirmModal').modal('show');
+	}
+
+	/*
+		Non-blocking replacement for window.prompt(). Shows #promptModal
+		(rendered once in top.ejs) and calls onSubmit(value) on OK/Enter --
+		value may be an empty string for an optional field left blank.
+		Cancel/Escape/backdrop-click never call it at all (there was no
+		submission to report), so a required-field call site should still
+		guard with its own "if(!value) return" the same as every prompt()
+		call site already did.
+		opts: {title, placeholder, value}
+	*/
+	function promptModal(opts, onSubmit){
+		opts = opts || {};
+		$('#promptModalTitle').text(opts.title || 'Input');
+		$('#promptModalInput')
+			.attr('placeholder', opts.placeholder || '')
+			.val(opts.value || '');
+		$('#promptModalForm').off('submit').on('submit', function(e){
+			e.preventDefault();
+			const value = $('#promptModalInput').val();
+			$('#promptModal').modal('hide');
+			onSubmit(value);
+		});
+		$('#promptModal').modal('show');
+		setTimeout(function(){ $('#promptModalInput').trigger('focus'); }, 300);
+	}
+
 	return {
 		getUrlParameter: getUrlParameter,
-		actionMessage: actionMessage
+		actionMessage: actionMessage,
+		toast: toast,
+		confirmModal: confirmModal,
+		promptModal: promptModal,
 	}
 })(app);
 
@@ -573,6 +637,27 @@ $( document ).ready( function () {
 	$('.actionMessage').on('click', 'button.action-close', function(event){
 		app.util.actionMessage(null, $(this));
 	})
+
+	/*
+		Bootstrap gives every modal + backdrop the same base z-index, so two
+		open at once (e.g. the Files modal, then its "New file" prompt) stack
+		by DOM position, not open order -- a modal opened later can render
+		BEHIND one opened earlier and end up invisible, even though it's
+		technically "open". Bump each modal (and its own backdrop, the last
+		one added) above whatever's already open when it shows.
+	*/
+	$(document).on('show.bs.modal', '.modal', function(){
+		const zIndex = 1050 + (10 * $('.modal.show').length);
+		$(this).css('z-index', zIndex);
+		setTimeout(function(){
+			$('.modal-backdrop').not('.modal-stacked').last()
+				.css('z-index', zIndex - 1)
+				.addClass('modal-stacked');
+		}, 0);
+	});
+	$(document).on('hidden.bs.modal', '.modal', function(){
+		if(!$('.modal.show').length) $('.modal-stacked').removeClass('modal-stacked');
+	});
 
 });
 
