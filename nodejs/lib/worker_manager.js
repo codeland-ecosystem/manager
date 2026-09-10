@@ -73,6 +73,13 @@ class WorkerManager{
 		const worker = this.workers[host];
 		if(!worker) throw this.errors.workerNotFound(host);
 
+		// Ensure the worker's runnerTemplate is initialized (LXC instance).
+		// addWorker creates the worker but init() is async and not awaited, so
+		// runnerTemplate may still be a string on first use.
+		if(!(worker.runnerTemplate && worker.runnerTemplate.startPersistent)){
+			await worker.init();
+		}
+
 		const runner = await worker.runnerMakePersistent(name, memLimit);
 		const Runner = (await this.registry()).Runner;
 		await Runner.create({
@@ -178,6 +185,10 @@ class WorkerManager{
 				// If the runner is already tracked (e.g. this worker just
 				// created it), skip.
 				if(worker.runnerGetByNameSafe && worker.runnerGetByNameSafe(entry.name)) continue;
+				// Ensure the worker's runnerTemplate is initialized.
+				if(!(worker.runnerTemplate && worker.runnerTemplate.startPersistent)){
+					await worker.init();
+				}
 				await worker.runnerMakePersistent(entry.name);
 				started++;
 			}catch(error){
