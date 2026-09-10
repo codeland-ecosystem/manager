@@ -182,6 +182,22 @@ All endpoints live under `/api/v1`.
   }
   ```
 
+### Streaming Run
+
+- **POST `/api/v1/runner/run/stream`**
+
+  Execute code on a fresh runner and stream the output to the client as it is
+  produced (chunked transfer encoding), so long-running jobs stream instead of
+  appearing to hang. The runner is destroyed after execution.
+
+  **Request Body:**
+  - `code` (string, required): the code to execute.
+  - `timeout` (integer, optional): max execution time in seconds.
+  - `queue` (integer, optional): how long to wait (ms) for a runner if the
+    oven is empty (default 15000).
+
+  **Response:** a chunked stream of base64-encoded output lines.
+
 ### Execute on a Specific Runner
 
 - **POST `/api/v1/runner/:runner`**
