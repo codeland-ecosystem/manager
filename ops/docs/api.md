@@ -198,6 +198,31 @@ All endpoints live under `/api/v1`.
 
   **Response:** a chunked stream of base64-encoded output lines.
 
+### Streaming Run on a Persistent Runner
+
+- **POST `/api/v1/runner/:runner/run/stream`**
+
+  Stream code on a named persistent runner, routed to its current worker.
+
+  **Request Body:**
+  - `code` (string, required)
+  - `timeout` (integer, optional)
+
+  **Response:** a chunked stream of base64-encoded output lines.
+
+### Streaming Run on Any Named Runner
+
+- **POST `/api/v1/runner/:runner/stream`**
+
+  Stream code on any named runner (persistent or ephemeral), routed to its
+  current worker.
+
+  **Request Body:**
+  - `code` (string, required)
+  - `timeout` (integer, optional)
+
+  **Response:** a chunked stream of base64-encoded output lines.
+
 ### Execute on a Specific Runner
 
 - **POST `/api/v1/runner/:runner`**

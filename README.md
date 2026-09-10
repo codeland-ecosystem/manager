@@ -117,7 +117,9 @@ The system manages three kinds of runners, all LXC containers cloned from a
   `stderr`, and `exit` separately, and accepts `language`, `stdin`, `files[]`,
   `timeout`, and `memLimit`.
 - **Streaming runs** — `POST /runner/run/stream` streams output to the client
-  as it is produced (chunked), so long jobs don't appear to hang.
+  as it is produced (chunked), so long jobs don't appear to hang. Streaming is
+  also available on persistent (`/runner/:runner/run/stream`) and any named
+  runner (`/runner/:runner/stream`).
 - **Queue-on-empty** — when the oven is empty, requests wait (up to a `queue`
   timeout) for a runner instead of failing with an instant 503.
 - **Published ports / preview** — the nginx proxy routes
