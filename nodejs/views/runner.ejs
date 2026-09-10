@@ -63,6 +63,9 @@
 	}
 
 	.keep-runner-switch{
+		/* Not d-inline-block: that Bootstrap utility is !important and would
+		   beat jQuery's .hide()/.show() used to hide settings while running. */
+		display: inline-block;
 		vertical-align: middle;
 		color: #ddd;
 	}
@@ -815,7 +818,7 @@ $(document).ready(function(){
 							Stdin
 						</button>
 
-						<span class="form-check form-switch d-inline-block clodelandSettings keep-runner-switch">
+						<span class="form-check form-switch clodelandSettings keep-runner-switch">
 							<input class="form-check-input" type="checkbox" id="keepRunnerToggle" checked>
 							<label class="form-check-label small" for="keepRunnerToggle" title="Checked: reuse the same runner between runs. Unchecked: every run gets a fresh throwaway runner.">
 								Keep runner
