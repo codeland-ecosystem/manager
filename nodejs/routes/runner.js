@@ -181,42 +181,29 @@ router.get('/registry', async (req, res, next)=>{
 });
 
 router.post('/:runner', async (req, res, next)=>{
-  let runner;
   try{
-    runner = clworker.runnerGetByName(req.params.runner);
-    const result = await clworker.runnerRun(runner, req.body.code, false);
-    return res.json({...result, runner: runner.name});
+    const time = Number.isInteger(Number(req.query.time)) ? req.query.time : undefined;
+    const result = await workerManager.runnerRunAnywhere(req.params.runner, req.body.code, time);
+    return res.json({...result, runner: req.params.runner});
   }catch(error){
-    if(runner && !error.runner) error.runner = runner;
     next(error)
   }
 });
 
 router.get('/:runner', async (req, res, next)=>{
-  let runner;
   try{
-    runner = clworker.runnerGetByName(req.params.runner);
-
-    return res.json({
-      ...(await runner.info()),
-      lastStatus: runner.lastStatus,
-      domain: runner.domain,
-      statusHistory: runner.statusHistory,
-    });
+    const info = await workerManager.runnerInfoAnywhere(req.params.runner);
+    return res.json(info);
   }catch(error){
-    if(runner && !error.runner) error.runner = runner;
     next(error)
   }
 });
 
 router.delete('/:runner', async (req, res, next)=>{
-  let runner;
   try{
-    runner = clworker.runnerGetByName(req.params.runner);
-    await clworker.runnerFree(runner);
+    await workerManager.runnerFreeAnywhere(req.params.runner);
     return res.json({res: 'success'});
   }catch(error){
-    if(runner && !error.runner) error.runner = runner;
     next(error)
   }
 });

@@ -94,6 +94,64 @@ class WorkerManager{
 	}
 
 	/*
+		Resolve a runner by name across all registered workers. Checks the
+		registry first (persistent runners), then falls back to each worker's
+		in-memory __runners map (ephemeral runners). Returns {worker, runner}
+		or throws runnerNotFound.
+	*/
+	async getRunnerAnywhere(name){
+		// Persistent runners are in the registry.
+		try{
+			const worker = await this.getRunnerWorker(name);
+			const runner = worker.runnerGetByNameSafe(name);
+			if(runner) return {worker, runner};
+		}catch(error){
+			if(error.name !== 'runnerNotFound') throw error;
+		}
+
+		// Ephemeral runners live in a worker's in-memory map.
+		for(const worker of Object.values(this.workers)){
+			const runner = worker.runnerGetByNameSafe(name);
+			if(runner) return {worker, runner};
+		}
+
+		throw this.errors.runnerNotFound(name);
+	}
+
+	/*
+		Run code on any runner (persistent or ephemeral), routing to the worker
+		that currently hosts it.
+	*/
+	async runnerRunAnywhere(name, code, time){
+		const {worker, runner} = await this.getRunnerAnywhere(name);
+		return worker.runnerRun(runner, code, time);
+	}
+
+	/*
+		Inspect any runner (persistent or ephemeral), routing to the worker
+		that currently hosts it.
+	*/
+	async runnerInfoAnywhere(name){
+		const {worker, runner} = await this.getRunnerAnywhere(name);
+		return {
+			...(await runner.info()),
+			lastStatus: runner.lastStatus,
+			domain: runner.domain,
+			statusHistory: runner.statusHistory,
+		};
+	}
+
+	/*
+		Free (destroy) any runner (persistent or ephemeral), routing to the
+		worker that currently hosts it.
+	*/
+	async runnerFreeAnywhere(name){
+		const {worker, runner} = await this.getRunnerAnywhere(name);
+		await worker.runnerFree(runner);
+		return true;
+	}
+
+	/*
 		Rehydrate persistent runners after a manager restart. The registry
 		persists across restarts, but each worker's in-memory __runners map is
 		empty, so runnerRunPersistent would fail. Start every registry entry
