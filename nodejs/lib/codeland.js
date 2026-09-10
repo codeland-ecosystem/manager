@@ -129,14 +129,24 @@ class CodeLandWorker{
 		instances.
 	*/
 	async init(){
+		const runnerTemplateName = this.runnerTemplate;
 		this.runnerTemplate = await LXC.get({
-			name: this.runnerTemplate,
+			name: runnerTemplateName,
 			execInstance: this.ssh
 		});
 
 		// Apply the worker default memory limit to the template so every
 		// runner created from it inherits the limit.
 		this.runnerTemplate.memLimit = this.memLimit;
+
+		// Persistent runners get their own (usually lighter) base template --
+		// their rootfs is copied onto NFS in full rather than overlaid, so a
+		// smaller base means much faster first-time provisioning. Falls back
+		// to the same template as ephemeral/pooled runners if unconfigured.
+		this.persistentTemplate = (this.persistentTemplateName === runnerTemplateName)
+			? this.runnerTemplate
+			: await LXC.get({ name: this.persistentTemplateName, execInstance: this.ssh });
+		this.persistentTemplate.memLimit = this.memLimit;
 
 		let runner = await this.runnerTemplate.info()
 		setTimeout(()=> this.__log.call(this, 'init',{
@@ -159,6 +169,11 @@ class CodeLandWorker{
 
 		// Hold the base template for new runners
 		this.runnerTemplate = args.runnerTemplate;
+
+		// Hold the base template name for persistent runners specifically
+		// (resolved to an LXC instance in init()). Defaults to the same
+		// template as everything else if not set.
+		this.persistentTemplateName = args.persistentTemplate || args.runnerTemplate;
 
 		// Hold the current domain for this runner
 		this.domain = args.domain;
@@ -299,7 +314,7 @@ class CodeLandWorker{
 		try{
 			this.__runnerSetStatus(name, 'oven:cooking');
 			this.runnersCooking++
-			runner = await this.runnerTemplate.startPersistent(name);
+			runner = await this.persistentTemplate.startPersistent(name);
 			runner.statusHistory = [];
 			runner.domain = `${runner.name}.${this.domain}`;
 
@@ -325,7 +340,17 @@ class CodeLandWorker{
 			return runner;
 		}catch(error){
 			this.__runnerSetStatus(runner || name, 'oven:error',{error});
-			if(runner) await runner.stopPersistent();
+			// Cleanup is best-effort: a container that failed to start never
+			// became a real runner, so stopping it can itself fail (nothing
+			// running to stop). That must not replace the real error below
+			// with the cleanup failure -- swallow it and log instead.
+			if(runner){
+				try{
+					await runner.stopPersistent();
+				}catch(cleanupError){
+					console.error(`cleanup failed for ${name}:`, cleanupError.message);
+				}
+			}
 			throw error;
 		}finally{
 			--this.runnersCooking

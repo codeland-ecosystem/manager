@@ -22,6 +22,7 @@ module.exports = {
 	},
 	clworker: {
 		runnerTemplate: 'crunner0',
+		persistentTemplate: 'crunner0-persistent',
 		memTarget: 15,
 		minAvailableRunners: 10,
 		domain: 'cl-worker-3.718it.codeland.us',
