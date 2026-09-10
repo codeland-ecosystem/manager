@@ -213,6 +213,15 @@ class WorkerManager{
 	async runnerFreeAnywhere(name){
 		const {worker, runner} = await this.getRunnerAnywhere(name);
 		await worker.runnerFree(runner);
+
+		// Drop the registry entry too, if there is one (persistent runners
+		// only -- ephemeral/pooled runners were never registered). Without
+		// this the registry keeps claiming a destroyed runner is still
+		// 'running', which then confuses a later create of the same name.
+		const Runner = (await this.registry()).Runner;
+		const entry = await Runner.get(name);
+		if(entry) await entry.delete();
+
 		return true;
 	}
 
