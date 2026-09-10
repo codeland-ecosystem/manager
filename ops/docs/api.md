@@ -265,6 +265,17 @@ All endpoints live under `/api/v1`.
   - `runners` (array): registry entries `{ name, worker, type, status,
     created_on, updated_on }`.
 
+## Auth routes
+
+### Mint an API Token
+
+- **POST `/api/v1/auth/token`**
+
+  Create a new API token for the current user. Requires an authenticated
+  request (send the `auth-token` header). Useful for scripts and a CLI.
+
+  **Response:** `{ "token": "<uuid>" }`
+
 ## Worker routes
 
 ### Worker Status
