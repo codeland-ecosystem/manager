@@ -2,6 +2,59 @@
 
 const router = require('express').Router();
 const {clworker, workerManager} = require('../controller/codeland');
+const {getBashLine, getFileRun} = require('../lib/interpreters');
+
+/*
+	Shared by /run/structured and /:runner/run/structured: resolve a request
+	body's `code`/`language`/`stdin`/`files` into the interpreter bashLine to
+	hand to runnerRunStructured. Throws a 400 error if `code` is missing.
+*/
+function buildStructuredBashLine(body){
+	const code = body.code;
+	if(typeof code !== 'string' || !code.length){
+		const e = new Error('code is required');
+		e.status = 400; throw e;
+	}
+
+	let bashLine;
+	if(body.language) bashLine = getBashLine(body.language);
+
+	let preamble = '';
+	if(Array.isArray(body.files) && body.files.length){
+		for(const f of body.files){
+			if(!f || typeof f.name !== 'string' || typeof f.content !== 'string') continue;
+			const b64 = Buffer.from(f.content).toString('base64');
+			preamble += `echo ${b64} | base64 --decode > /tmp/${f.name}; `;
+		}
+	}
+
+	let fullBashLine;
+	const hasStdin = typeof body.stdin === 'string' && body.stdin.length;
+	if(hasStdin){
+		const ext = {sh:'sh',bash:'sh',python:'py',python3:'py',javascript:'js',node:'js',
+			php:'php',perl:'pl',ruby:'rb',lua:'lua',c:'c',c_ccp:'c','c++':'cpp',c_cpp:'cpp',
+			rust:'rs',go:'go',golang:'go',java:'java',typescript:'ts',csharp:'cs',swift:'swift',
+			r:'r',haskell:'hs',groovy:'groovy',fortran:'f'}[body.language] || 'sh';
+		const fileCmd = getFileRun(body.language);
+		const codeB64 = Buffer.from(code).toString('base64');
+		const stdinB64 = Buffer.from(body.stdin).toString('base64');
+		if(fileCmd){
+			fullBashLine = `${preamble}echo ${codeB64} | base64 --decode > /tmp/code.${ext}; echo ${stdinB64} | base64 --decode | ${fileCmd}`;
+		}else{
+			// No file-based entry (e.g. powershell, markdown, brainfuck): write
+			// the code to a script and pipe stdin into bash running it. (The
+			// previous version piped stdin into `echo <code>`, which ignored
+			// stdin -- echo doesn't read it -- and silently dropped it.)
+			fullBashLine = `${preamble}echo ${codeB64} | base64 --decode > /tmp/code.${ext}; echo ${stdinB64} | base64 --decode | bash /tmp/code.${ext}`;
+		}
+	}else if(bashLine){
+		fullBashLine = preamble + bashLine;
+	}else{
+		fullBashLine = preamble + `echo "${Buffer.from(code).toString('base64')}" | base64 --decode | bash`;
+	}
+
+	return {code, fullBashLine};
+}
 
 
 router.get('/', async(req, res, next)=>{
@@ -72,66 +125,54 @@ router.post('/run/stream', async (req, res, next)=>{
 */
 router.post('/run/structured', async (req, res, next)=>{
   try{
-    const {getBashLine} = require('../lib/interpreters');
     const time = Number.isInteger(Number(req.body.timeout)) ? req.body.timeout : undefined;
     const memLimit = req.body.memLimit;
     // How long to wait for a runner if the oven is empty (default 15s).
     const queueMs = Number.isInteger(Number(req.body.queue)) ? req.body.queue : 15000;
-    const code = req.body.code;
-    if(typeof code !== 'string' || !code.length){
-      const e = new Error('code is required');
-      e.status = 400; throw e;
-    }
-
-    // Resolve the interpreter template.
-    let bashLine;
-    if(req.body.language){
-      bashLine = getBashLine(req.body.language);
-    }
-
-    // Build a preamble that writes any files.
-    let preamble = '';
-    if(Array.isArray(req.body.files) && req.body.files.length){
-      for(const f of req.body.files){
-        if(!f || typeof f.name !== 'string' || typeof f.content !== 'string') continue;
-        const b64 = Buffer.from(f.content).toString('base64');
-        preamble += `echo ${b64} | base64 --decode > /tmp/${f.name}; `;
-      }
-    }
-
-    // If stdin is provided, write the code to a file and run it file-based
-    // (the interpreter templates pipe code via stdin, which would conflict
-    // with user stdin). Otherwise use the interpreter template.
-    let fullBashLine;
-    const hasStdin = typeof req.body.stdin === 'string' && req.body.stdin.length;
-    if(hasStdin){
-      const {getFileRun} = require('../lib/interpreters');
-      const ext = {sh:'sh',bash:'sh',python:'py',python3:'py',javascript:'js',node:'js',
-        php:'php',perl:'pl',ruby:'rb',lua:'lua',c:'c',c_ccp:'c','c++':'cpp',c_cpp:'cpp',
-        rust:'rs',go:'go',golang:'go',java:'java',typescript:'ts',csharp:'cs',swift:'swift',
-        r:'r',haskell:'hs',groovy:'groovy',fortran:'f'}[req.body.language] || 'sh';
-      const fileCmd = getFileRun(req.body.language);
-      if(fileCmd){
-        const codeB64 = Buffer.from(code).toString('base64');
-        const stdinB64 = Buffer.from(req.body.stdin).toString('base64');
-        fullBashLine = `${preamble}echo ${codeB64} | base64 --decode > /tmp/code.${ext}; echo ${stdinB64} | base64 --decode | ${fileCmd}`;
-      }else{
-        // No file-based entry; fall back to shell with stdin.
-        const codeB64 = Buffer.from(code).toString('base64');
-        const stdinB64 = Buffer.from(req.body.stdin).toString('base64');
-        fullBashLine = `${preamble}echo ${stdinB64} | base64 --decode | echo ${codeB64} | base64 --decode | bash`;
-      }
-    }else if(bashLine){
-      fullBashLine = preamble + bashLine;
-    }else{
-      fullBashLine = preamble + `echo "${Buffer.from(code).toString('base64')}" | base64 --decode | bash`;
-    }
+    const {code, fullBashLine} = buildStructuredBashLine(req.body);
 
     const result = await clworker.runnerRunOnceStructured(code, time, memLimit, fullBashLine, queueMs);
     clworker.historyAdd({runner: result.runner, duration: result.duration, ok: true, exit: result.exit});
     res.json(result);
   }catch(error){
     clworker.historyAdd({runner: error.runner && error.runner.name, ok: false, error: error.message});
+    next(error)
+  }
+});
+
+/*
+	Structured run on an existing named runner (persistent or the session's
+	ephemeral "kept" runner), routed to its current worker. Unlike
+	/run/structured, the runner is NOT destroyed after -- this is the
+	structured counterpart to POST /:runner for the "keep this machine"
+	playground mode.
+*/
+router.post('/:runner/run/structured', async (req, res, next)=>{
+  try{
+    const time = Number.isInteger(Number(req.body.timeout)) ? req.body.timeout : undefined;
+    const {code, fullBashLine} = buildStructuredBashLine(req.body);
+
+    const {worker, runner} = await workerManager.getRunnerAnywhere(req.params.runner);
+    const result = await worker.runnerRunStructured(runner, code, time, fullBashLine);
+    clworker.historyAdd({runner: result.runner, duration: result.duration, ok: true, exit: result.exit});
+    res.json(result);
+  }catch(error){
+    clworker.historyAdd({runner: error.runner && error.runner.name, ok: false, error: error.message});
+    next(error)
+  }
+});
+
+/*
+	Reserve a pooled runner without running anything on it yet. Used to start
+	a "keep this machine" session: the caller gets a runner name back, then
+	drives it with POST /:runner/run/structured so every run in the session
+	(including the first) gets structured stdout/stderr/exit.
+*/
+router.post('/reserve', async (req, res, next)=>{
+  try{
+    const runner = clworker.runnerPop();
+    return res.json({runner: runner.name, domain: runner.domain});
+  }catch(error){
     next(error)
   }
 });

@@ -65,8 +65,20 @@ app.socket = (function(app){
 app.api = (function(app){
 	var baseURL = '/api/v1/'
 
+	// res.responseText is empty (not valid JSON) on an aborted request or a
+	// network-level failure, so JSON.parse would throw inside the ajax
+	// complete handler itself. Fall back to {} instead.
+	function safeParse(text){
+		try{
+			return JSON.parse(text);
+		}catch(error){
+			return {};
+		}
+	}
+
 	function post(url, data, callback){
-		$.ajax({
+		// Return the jqXHR so callers can .abort() an in-flight request.
+		return $.ajax({
 			type: 'POST',
 			url: baseURL+url,
 			headers:{
@@ -78,7 +90,7 @@ app.api = (function(app){
 			complete: function(res, text){
 				callback(
 					text !== 'success' ? res.statusText : null,
-					JSON.parse(res.responseText),
+					safeParse(res.responseText),
 					res.status
 				)
 			}
@@ -86,7 +98,7 @@ app.api = (function(app){
 	}
 
 	function put(url, data, callback){
-		$.ajax({
+		return $.ajax({
 			type: 'PUT',
 			url: baseURL+url,
 			headers:{
@@ -98,7 +110,7 @@ app.api = (function(app){
 			complete: function(res, text){
 				callback(
 					text !== 'success' ? res.statusText : null,
-					JSON.parse(res.responseText),
+					safeParse(res.responseText),
 					res.status
 				)
 			}
@@ -107,7 +119,7 @@ app.api = (function(app){
 
 	function remove(url, callback, callback2){
 		if(!$.isFunction(callback)) callback = callback2;
-		$.ajax({
+		return $.ajax({
 			type: 'delete',
 			url: baseURL+url,
 			headers:{
@@ -118,7 +130,7 @@ app.api = (function(app){
 			complete: function(res, text){
 				callback(
 					text !== 'success' ? res.statusText : null,
-					JSON.parse(res.responseText),
+					safeParse(res.responseText),
 					res.status
 				)
 			}
@@ -126,7 +138,7 @@ app.api = (function(app){
 	}
 
 	function get(url, callback){
-		$.ajax({
+		return $.ajax({
 			type: 'GET',
 			url: baseURL+url,
 			headers:{
@@ -137,7 +149,7 @@ app.api = (function(app){
 			complete: function(res, text){
 				callback(
 					text !== 'success' ? res.statusText : null,
-					JSON.parse(res.responseText),
+					safeParse(res.responseText),
 					res.status
 				)
 			}
@@ -310,6 +322,65 @@ app.codeland = (function(app){
 		});
 	}
 
+	/*
+		Throwaway structured run: fresh runner, destroyed after, stdout/stderr/
+		exit returned separately (no base64 blob to decode). `opts` may include
+		language, stdin, files, timeout, memLimit, queue.
+	*/
+	function onceStructured(opts, callback){
+		return app.api.post('runner/run/structured', opts, callback);
+	}
+
+	function reserve(callback){
+		return app.api.post('runner/reserve', {}, callback);
+	}
+
+	function callStructured(runnerName, opts, callback){
+		return app.api.post(`runner/${runnerName}/run/structured`, opts, callback);
+	}
+
+	/*
+		"Keep this machine" structured run: reuses the session's runner (stored
+		via setRunner/getRunner) across calls, reserving one on first use. Every
+		run -- including the first -- gets structured stdout/stderr/exit.
+
+		Returns the jqXHR of whichever request is currently in flight; since a
+		cold start chains reserve -> run, the optional onXhr callback is fired
+		each time the in-flight request changes so a caller tracking "the
+		current request" (e.g. to support Cancel) can stay up to date.
+	*/
+	function sessionRunStructured(opts, callback, onXhr){
+		function setXhr(xhr){
+			if(onXhr) onXhr(xhr);
+		}
+
+		if(getRunner().name){
+			const xhr = callStructured(getRunner().name, opts, function(err, data){
+				if(err && data && data.name === 'runnerNotFound'){
+					setRunner();
+					const xhr2 = reserve(function(err2, data2){
+						if(err2) return callback(err2, data2);
+						setRunner({name: data2.runner, domain: data2.domain});
+						const xhr3 = callStructured(data2.runner, opts, callback);
+						setXhr(xhr3);
+					});
+					setXhr(xhr2);
+					return;
+				}
+				callback(err, data);
+			});
+			return xhr;
+		}
+
+		const xhr = reserve(function(err, data){
+			if(err) return callback(err, data);
+			setRunner({name: data.runner, domain: data.domain});
+			const xhr2 = callStructured(data.runner, opts, callback);
+			setXhr(xhr2);
+		});
+		return xhr;
+	}
+
 	function newRunner(code, callback){
 		app.api.post('runner/new', {code: code}, function(error, data){
 			if(error) return callback(error, data);
@@ -397,7 +468,8 @@ app.codeland = (function(app){
 	}
 
 	return {once, getRunner, call, kill, persistentRun, info, setRunner, newRunner,
-		makePersistent, runPersistent, stopPersistent, migratePersistent, listRegistry};
+		makePersistent, runPersistent, stopPersistent, migratePersistent, listRegistry,
+		onceStructured, reserve, callStructured, sessionRunStructured};
 
 })(app);
 

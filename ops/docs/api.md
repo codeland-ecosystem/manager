@@ -78,6 +78,20 @@ All endpoints live under `/api/v1`.
 
   **Response:** same shape as `/run`.
 
+### Reserve a Pooled Runner
+
+- **POST `/api/v1/runner/reserve`**
+
+  Pop a runner from the pool without running anything on it. Used to start a
+  "keep this machine" session: get a runner name back, then drive it with
+  `POST /api/v1/runner/:runner/run/structured` so every run in the session,
+  including the first, gets structured stdout/stderr/exit instead of the raw
+  base64 blob `/new` returns.
+
+  **Response:**
+  - `runner` (string)
+  - `domain` (string)
+
 ### Create a Persistent Runner
 
 - **POST `/api/v1/runner/persistent`**
@@ -181,6 +195,21 @@ All endpoints live under `/api/v1`.
     "exit": 0
   }
   ```
+
+### Structured Run on a Named Runner
+
+- **POST `/api/v1/runner/:runner/run/structured`**
+
+  Structured counterpart to `POST /api/v1/runner/:runner/run`: same
+  stdout/stderr/exit separation as `/run/structured`, but runs on an
+  existing named runner (persistent, or a runner reserved via `/reserve`)
+  instead of popping a fresh one, and does **not** destroy it after.
+
+  **Request Body:** same as `/run/structured` (`code`, `language`, `stdin`,
+  `files`, `timeout`) except `memLimit` and `queue`, which don't apply to an
+  already-running runner.
+
+  **Response:** same shape as `/run/structured`.
 
 ### Streaming Run
 

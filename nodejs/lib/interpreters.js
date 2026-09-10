@@ -35,7 +35,7 @@ const interpreters = {
 	'scala': 'echo "${code_in_base64}" | base64 --decode > /tmp/code.scala; scala -i /tmp/code.scala',
 	'haskell': 'echo "${code_in_base64}" | base64 --decode | runhaskell',
 	'groovy': 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64; echo "${code_in_base64}" | base64 --decode > /tmp/code.groovy; groovy -d /tmp/code.groovy',
-	'fortran': 'echo "${code_in_base64}" | base64 --decode > /tmp/code.f; gfortran -o /tmp/code /tmp/code.f && ./tmp/code',
+	'fortran': 'echo "${code_in_base64}" | base64 --decode > /tmp/code.f; gfortran -o /tmp/code /tmp/code.f && /tmp/code',
 	'solidity': 'echo "${code_in_base64}" | base64 --decode > /tmp/main.sol; solc --allow-paths /usr/bin/ --assemble --overwrite /tmp/main.sol',
 };
 

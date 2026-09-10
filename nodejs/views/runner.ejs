@@ -53,54 +53,155 @@
 		padding-top: .5px;
 		padding-left: .5em;
 	}
+
+	#stdinPanel textarea{
+		background: #1e1e1e;
+		color: #ddd;
+		border: none;
+		border-radius: 0;
+		resize: vertical;
+	}
+
+	.keep-runner-switch{
+		vertical-align: middle;
+		color: #ddd;
+	}
 </style>
 
 <script type="text/javascript">
 var editor;
 var currentLanguage = 'sh';
+var currentKeyboard = 'sublime';
+var currentTimeout = 30;
 var termTTY;
+var ttyStarted = false;
 var resultsTerm;
 var codelandGUIonResult = false;
+var isRunning = false;
+var currentRunXHR = null;
+var runToken = 0;
+
+const STORAGE_KEY = 'codeland.playground.v1';
+
+/*
+	Ace's mode ids don't always match the language id we send to the backend
+	(e.g. both "c" and "c_cpp" use ace's c_cpp mode). Only listed where they
+	differ from the language id itself.
+*/
+const aceModeMap = {
+	c: 'c_cpp',
+	golang: 'golang',
+	brainfuck: 'text',
+};
+
+/*
+	One working hello-world per language, loaded automatically the first time
+	a language is picked into an empty buffer so the dropdown is never a dead
+	end.
+*/
+const starterSnippets = {
+	sh: 'echo "Hello, CodeLand!"\n',
+	powershell: 'Write-Output "Hello, CodeLand!"\n',
+	perl: 'print "Hello, CodeLand!\\n";\n',
+	php: '<?php\necho "Hello, CodeLand!\\n";\n',
+	javascript: 'console.log("Hello, CodeLand!");\n',
+	typescript: 'const message: string = "Hello, CodeLand!";\nconsole.log(message);\n',
+	python: 'print("Hello, CodeLand!")\n',
+	lua: 'print("Hello, CodeLand!")\n',
+	ruby: 'puts "Hello, CodeLand!"\n',
+	r: 'cat("Hello, CodeLand!\\n")\n',
+	java: 'public class code {\n    public static void main(String[] args) {\n        System.out.println("Hello, CodeLand!");\n    }\n}\n',
+	scala: 'object code extends App {\n  println("Hello, CodeLand!")\n}\n',
+	haskell: 'main :: IO ()\nmain = putStrLn "Hello, CodeLand!"\n',
+	groovy: 'println "Hello, CodeLand!"\n',
+	fortran: 'program hello\n    print *, "Hello, CodeLand!"\nend program hello\n',
+	csharp: 'using System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello, CodeLand!");\n    }\n}\n',
+	c: '#include <stdio.h>\n\nint main(void) {\n    printf("Hello, CodeLand!\\n");\n    return 0;\n}\n',
+	c_cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello, CodeLand!" << std::endl;\n    return 0;\n}\n',
+	rust: 'fn main() {\n    println!("Hello, CodeLand!");\n}\n',
+	golang: 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, CodeLand!")\n}\n',
+	swift: 'print("Hello, CodeLand!")\n',
+	markdown: '# Hello, CodeLand!\n\nThis is **Markdown**, rendered to HTML.\n',
+	brainfuck: '++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.',
+};
+
+function debounce(fn, wait){
+	let t;
+	return function(...args){
+		clearTimeout(t);
+		t = setTimeout(() => fn.apply(this, args), wait);
+	};
+}
+
+function saveLocal(){
+	try{
+		localStorage.setItem(STORAGE_KEY, JSON.stringify({
+			code: editor.getValue(),
+			language: currentLanguage,
+			keyboard: currentKeyboard,
+		}));
+	}catch(error){}
+}
+
+function loadLocal(){
+	try{
+		return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+	}catch(error){
+		return null;
+	}
+}
+
+function loadStarterSnippet(language){
+	const snippet = starterSnippets[language];
+	if(snippet) editor.setValue(snippet, -1);
+}
+
+/*
+	Only auto-fill a starter snippet when the buffer is empty, so switching
+	languages never clobbers code the user already wrote.
+*/
+function maybeLoadStarter(language){
+	if(editor && !editor.getValue().trim()) loadStarterSnippet(language);
+}
+
+/*
+	Collect the current run options (code/language/stdin/timeout) to send to
+	the structured run endpoints.
+*/
+function currentOpts(){
+	const opts = {
+		code: editor.getValue(),
+		language: currentLanguage,
+	};
+	const stdin = $('#stdinInput').val();
+	if(stdin) opts.stdin = stdin;
+	if(currentTimeout) opts.timeout = currentTimeout;
+	return opts;
+}
+
+/*
+	Render a structured run result (stdout/stderr/exit kept separate, instead
+	of one base64 blob) into the results terminal.
+*/
+function displayResult(data){
+	if(data.stdout){
+		for(let line of data.stdout.split('\n')) resultsTerm.writeln(line);
+	}
+	if(data.stderr){
+		resultsTerm.writeln('');
+		resultsTerm.writeln('\x1b[31m--- stderr ---\x1b[0m');
+		for(let line of data.stderr.split('\n')) resultsTerm.writeln('\x1b[31m' + line + '\x1b[0m');
+	}
+	resultsTerm.writeln('');
+	const exitColor = data.exit === 0 ? '\x1b[32m' : '\x1b[31m';
+	resultsTerm.writeln(`\x1b[2m[runner ${data.runner} · ${data.duration}ms · exit ${exitColor}${data.exit}\x1b[0m\x1b[2m]\x1b[0m`);
+}
 
 /*
 	Parse the code from into what the runners wants
 */
-const interpreters = {
-	'sh': 'echo "${code_in_base64}" | base64 --decode | bash',
-	'python': 'echo "${code_in_base64}" | base64 --decode | python3',
-	'javascript': 'echo "${code_in_base64}" | base64 --decode | node',
-	'c_ccp': 'echo "${code_in_base64}" | base64 --decode | gcc -xc -o run1 - && ./run1',
-	"c_cpp": "echo \"${code_in_base64}\" | base64 --decode | g++ -xc++ -o run1 - && ./run1",
-	'php': "echo \"${code_in_base64}\" | base64 --decode | php",
-	"powershell": "echo \"${code_in_base64}\" | base64 --decode | pwsh -NonInteractive",
-	"lua": "echo \"${code_in_base64}\" | base64 --decode | lua",
-	"markdown": "echo \"${code_in_base64}\" | base64 --decode | pandoc -f markdown -t html",
-	"rust": "echo \"${code_in_base64}\" | base64 --decode | rustc -o run1 - && ./run1",
-	"perl": "echo \"${code_in_base64}\" | base64 --decode | perl",
-	"brainfuck": "echo \"${code_in_base64}\" | base64 --decode > /tmp/br.run; bf /tmp/br.run",
-	"golang": "echo \"${code_in_base64}\" | base64 --decode > /tmp/run.go; go run /tmp/run.go",
-    "java": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.java; java /tmp/code.java",
-    "ruby": "echo \"${code_in_base64}\" | base64 --decode | ruby",
-    "typescript": "echo \"${code_in_base64}\" | base64 --decode | ts-node",
-    "csharp": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.cs; mcs /tmp/code.cs -out:/tmp/code.exe; mono /tmp/code.exe",
-    "swift": "echo \"${code_in_base64}\" | base64 --decode | swift",
-    "r": "echo \"${code_in_base64}\" | base64 --decode | R --no-save",
-    "scala": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.scala; scala -i /tmp/code.scala",
-    "haskell": "echo \"${code_in_base64}\" | base64 --decode | runhaskell",
-    "groovy": "export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64; echo \"${code_in_base64}\" | base64 --decode > /tmp/code.groovy; groovy -d /tmp/code.groovy",
-	
-    /*To add*/
 
-	/* I cant get solidity to work, todo... */
-    "fortran": "echo \"${code_in_base64}\" | base64 --decode > /tmp/code.f; gfortran -o /tmp/code /tmp/code.f && ./tmp/code",
-    "solidity": "echo \"${code_in_base64}\" | base64 --decode > /tmp/main.sol; solc --allow-paths /usr/bin/ --assemble --overwrite /tmp/main.sol",
-}
-
-function parseCode(code, language){
-	return interpreters[language].replace('${code_in_base64}', btoa(code))
-}
-
-/*	
+/*
 	Map the arguments from the URL hash to what functions will edit the
 	correct part of the page
 */
@@ -125,7 +226,7 @@ function parseHash(){
 }
 
 /*
-	Helper functions to update the DOM. Functions will be called via event, 
+	Helper functions to update the DOM. Functions will be called via event,
 	or other helper functions
 */
 
@@ -150,21 +251,29 @@ function updateDropDown(value, $elememt){
 function updateKeybpard(keyboard, appendURL=true){
 	if(updateDropDown(keyboard, $codelandKeyboardSelect)){
 		editor.setKeyboardHandler(`ace/keyboard/${keyboard}`);
+		currentKeyboard = keyboard;
 		if(appendURL) updateURL('keyboard', keyboard);
 	}
 }
 
 function updateLanguage(language, appendURL=true){
 	if(updateDropDown(language, $codelandLanguageSelect)){
-		editor.getSession().setMode(`ace/mode/${language}`);
+		editor.getSession().setMode(`ace/mode/${aceModeMap[language] || language}`);
 		currentLanguage = language;
 		if(appendURL) updateURL('language', language);
+		maybeLoadStarter(language);
+	}
+}
+
+function updateTimeout(seconds, appendURL=true){
+	if(updateDropDown(seconds, $codelandTimeoutSelect)){
+		currentTimeout = seconds ? Number(seconds) : undefined;
 	}
 }
 
 function updateCode(code, appendURL){
 	code = atob(code)
-	editor.setValue(code)
+	editor.setValue(code, -1)
 }
 
 // Used by the share button to set the URL hash
@@ -193,7 +302,22 @@ function buildAce(elememt){
 	return editor;
 }
 
+function showTerminalPlaceholder($element){
+	$element.html(`
+		<div class="d-flex align-items-center justify-content-center" style="height:100%;">
+			<button id="openTerminalBtn" class="btn btn-outline-success">
+				<i class="fa-solid fa-terminal"></i> Open Terminal
+			</button>
+		</div>
+	`);
+	$element.find('#openTerminalBtn').one('click', function(){
+		startTtyTerminal($element);
+	});
+}
+
 function startTtyTerminal($element){
+	ttyStarted = true;
+	$element.empty();
 	app.util.actionMessage(
 		`Loading terminal from remote runenr`,
 		$element,
@@ -255,17 +379,100 @@ function createPersistentRunner(){
 function runOnPersistent(name){
 	resultsTerm.clear()
 	app.util.actionMessage(`Executing on persistent runner <b>${name}</b>...`, $('#codeland-results'), 'warning')
-	app.codeland.runPersistent(name, `export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
+	app.codeland.callStructured(name, currentOpts(), (err, data)=>{
 		if(err){
 			let message = (data && data.message) || err.message || err;
 			app.util.actionMessage(`Persistent runner failed: <b>${message}</b>`, $('#codeland-results'), 'danger')
 			return;
 		}
 		app.util.actionMessage('', $('#codeland-results'))
-		for(let line of data.res.split('\n')){
-			resultsTerm.writeln(line)
-		}
+		displayResult(data);
 	});
+}
+
+/*
+	Toggle the Run button between its idle ("Run") and in-flight ("Cancel")
+	states. Everything in .clodelandSettings except the Run/Cancel button
+	itself is hidden while running -- the button must stay clickable so a
+	hung run can always be cancelled instead of leaving the tab stuck.
+*/
+function setRunningUI(running){
+	isRunning = running;
+	if(running){
+		$editorSettings.not('#execute').hide();
+	}else{
+		$editorSettings.not('#execute').show();
+	}
+	const $btn = $('#execute');
+	if(running){
+		$btn.removeClass('btn-outline-success').addClass('btn-outline-danger')
+			.html('<i class="fa-solid fa-stop"></i> Cancel');
+	}else{
+		$btn.removeClass('btn-outline-danger').addClass('btn-outline-success')
+			.html('<i class="fa-solid fa-play"></i> Run');
+	}
+}
+
+function startRun(){
+	const myToken = ++runToken;
+	resultsTerm.clear()
+	setRunningUI(true);
+	$spinner.show()
+	app.util.actionMessage(`
+		Executing...
+		<div class="spinner-border float-right" role="status">
+			<span class="sr-only">Loading...</span>
+		</div>
+	`, $('#codeland-results'), 'warning')
+
+	const opts = currentOpts();
+	const onDone = function(err, data){
+		// A newer run (or an explicit cancel) already superseded this one --
+		// ignore this stale completion instead of clobbering current state.
+		if(myToken !== runToken) return;
+
+		setRunningUI(false);
+		$spinner.hide()
+
+		if(err){
+			let message = (data && data.message) || err.message || err;
+			app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
+			return;
+		}
+		app.util.actionMessage('', $('#codeland-results'))
+		displayResult(data);
+
+		if(!codelandGUIonResult) $('#codeland-GUI-resrilt-spiner').show()
+
+		$.scope.runInformation.update(data)
+	};
+
+	if($('#keepRunnerToggle').is(':checked')){
+		currentRunXHR = app.codeland.sessionRunStructured(opts, onDone, function(xhr){ currentRunXHR = xhr; });
+	}else{
+		currentRunXHR = app.codeland.onceStructured(opts, onDone);
+	}
+}
+
+function cancelRun(){
+	runToken++; // invalidate the in-flight run's callback, if it ever lands
+	if(currentRunXHR && currentRunXHR.abort) currentRunXHR.abort();
+	currentRunXHR = null;
+
+	setRunningUI(false);
+	$spinner.hide()
+
+	// Aborting only stops the client from waiting -- the shell command may
+	// still be running on the runner. For "keep runner" mode that runner is
+	// ours by name, so recycling it actually stops the command. A throwaway
+	// run has no session runner to recycle (it pops and frees its own), so
+	// cancelling it only unblocks the tab.
+	if($('#keepRunnerToggle').is(':checked') && app.codeland.getRunner().name){
+		app.codeland.kill(function(){});
+	}
+
+	app.util.actionMessage('Cancelled.', $('#codeland-results'), 'warning');
+	resultsTerm.writeln('\x1b[33m[cancelled]\x1b[0m');
 }
 
 $(document).ready(function(){
@@ -278,62 +485,63 @@ $(document).ready(function(){
 	$results = $('#codeland-results');
 	$codelandKeyboardSelect = $('#codelandKeyboardSelect');
 	$codelandLanguageSelect = $('#codelandLanguageSelect');
+	$codelandTimeoutSelect = $('#codelandTimeoutSelect');
 
 	/*
 		Create instances that need the DOM ready
 	*/
 
-	startTtyTerminal($('#codeland-tty'))
-	
+	// The terminal is no longer opened automatically -- it burns a runner
+	// before the user has asked for one. It only connects when explicitly
+	// requested (the placeholder button, or Recycle if it was already open).
+	showTerminalPlaceholder($('#codeland-tty'));
+
 	resultsTerm = new CLTerminal(document.getElementById('codeland-results'));
 	editor = buildAce($editor[0]);
 
-	parseHash();
+	// A shared link (#code=...) always wins. Otherwise restore the last
+	// local session so a refresh doesn't lose the buffer -- the hash is for
+	// sharing, localStorage is for "what was I doing."
+	const hashParams = new URLSearchParams(window.location.hash.replace(/^\#/, ''));
+	if(hashParams.has('code')){
+		parseHash();
+	}else{
+		const saved = loadLocal();
+		if(saved){
+			if(saved.language) updateLanguage(saved.language, false);
+			if(saved.keyboard) updateKeybpard(saved.keyboard, false);
+			if(saved.code) editor.setValue(saved.code, -1);
+		}
+	}
+	if(!editor.getValue().trim()) loadStarterSnippet(currentLanguage);
+
+	editor.on('change', debounce(saveLocal, 500));
 
 	/*
 		Set up event handlers
 	*/
 	$('#share').on('click', function(){
 		setCode(editor.getValue());
+		const url = window.location.href;
+		const copied = function(){
+			app.util.actionMessage('Link copied to clipboard!', $('#codeland-results'), 'success');
+		};
+		const fallback = function(){
+			app.util.actionMessage(`Share link: <code>${url}</code>`, $('#codeland-results'), 'info');
+		};
+		if(navigator.clipboard && navigator.clipboard.writeText){
+			navigator.clipboard.writeText(url).then(copied, fallback);
+		}else{
+			fallback();
+		}
 	});
 
 	$('#execute').on('click', function(){
-		resultsTerm.clear()
-		$('.results-buttons').find('button').each(function(){
-			$(this).addClass('disabled')
-		})
-		$editorSettings.hide()
-		$spinner.show()
-		app.util.actionMessage(`
-			Executing...
-			<div class="spinner-border float-right" role="status">
-				<span class="sr-only">Loading...</span>
-			</div>
-		`, $('#codeland-results'), 'warning')
-		
-		app.codeland.persistentRun(`export TERM=xterm-256color; ${parseCode(editor.getValue(), currentLanguage)}`, (err, data)=>{
-			$editorSettings.show()
-			$spinner.hide()
-			
-			if(err){
-				let message = (data && data.message) || err.message || err;
-				app.util.actionMessage(`Runner failed with error: <b>${message}</b>`, $('#codeland-results'), 'danger')
-				return;
-			}
-			app.util.actionMessage('', $('#codeland-results'))
-
-			for(let line of data.res.split('\n')){
-				resultsTerm.writeln(line)
-			}
-
-			if(!codelandGUIonResult) $('#codeland-GUI-resrilt-spiner').show()
-
-			$.scope.runInformation.update(data)
-			$('.results-buttons').find('button').each(function(){
-				$(this).removeClass('disabled')
-			})
-
-		})
+		if(isRunning){
+			cancelRun();
+		}else{
+			startRun();
+		}
 	});
 
 	$codelandKeyboardSelect.on('click', 'a.dropdown-item', function(event){
@@ -343,6 +551,12 @@ $(document).ready(function(){
 	$codelandLanguageSelect.on('click', 'a.dropdown-item', function(event){
 		updateLanguage($(this).attr('value'))
 	});
+
+	$codelandTimeoutSelect.on('click', 'a.dropdown-item', function(event){
+		updateTimeout($(this).attr('value'))
+	});
+	// Initialize the timeout dropdown label/active state to match currentTimeout.
+	updateTimeout(String(currentTimeout));
 
 	$('#runnerInfo').on('click', function(event){
 		app.codeland.info(function(err, data){
@@ -376,25 +590,26 @@ $(document).ready(function(){
 	});
 
 	$('#runnerRecycle').on('click', function(event){
-		app.util.actionMessage(
-			`Getting new runner...`,
-			$('#codeland-tty'),
-			'warning',
-		);
 		if(termTTY) try{
 			// https://github.com/xtermjs/xterm.js/issues/4757
 			termTTY.dispose();
 		}catch(error){}
 
 		app.codeland.kill(function(){
-			startTtyTerminal($('#codeland-tty'));
+			if(ttyStarted){
+				app.util.actionMessage(`Getting new runner...`, $('#codeland-tty'), 'warning');
+				startTtyTerminal($('#codeland-tty'));
+			}else{
+				showTerminalPlaceholder($('#codeland-tty'));
+			}
+			app.util.actionMessage(`Runner recycled.`, $('#codeland-results'), 'success');
 		});
 	});
 
 	$('button.codeland-GUI').on('click', function(event){
 		codelandGUIonResult = !codelandGUIonResult
 		$('.codeland-GUI').toggle(function(){
-			termTTY.fit()
+			if(termTTY) termTTY.fit()
 			resultsTerm.fit()
 		});
 	});
@@ -427,7 +642,7 @@ $(document).ready(function(){
 <div class="row" style="height: 100%; display: none;">
 	<div class="codeland-col col-md-6" style="height: 100%;">
 		<div id="codeland-card" class="card shadow-lg">
-			<nav class="card-header navbar navbar-dark bg-dark">
+			<nav class="card-header navbar navbar-dark bg-dark flex-wrap">
 				<a class="navbar-brand">
 					<i class="fa-solid fa-code"></i>
 					Editor
@@ -468,7 +683,7 @@ $(document).ready(function(){
 								</a>
 
 								<a class="dropdown-item" value="perl">
-									<img src="/static/svg/lua.svg" height="16px"/>
+									<img src="/static/svg/perl.svg" height="16px"/>
 									Perl
 								</a>
 
@@ -531,7 +746,7 @@ $(document).ready(function(){
 									Groovy
 								</a>
 
-								<a class="dropdown-item disabled" value="fortran">
+								<a class="dropdown-item" value="fortran">
 									<img src="/static/svg/fortran.svg" height="16px"/>
 									Fortran
 								</a>
@@ -570,11 +785,6 @@ $(document).ready(function(){
 
 								<hr style="margin: 0;" />
 
-								<a class="dropdown-item disabled" value="solidity">
-									<img src="/static/svg/solidity.svg" height="16px"/>
-									Solidity
-								</a>
-
 								<a class="dropdown-item" value="markdown">
 									<i class="fa-brands fa-markdown"></i>
 									Markdown
@@ -582,24 +792,52 @@ $(document).ready(function(){
 
 								<a class="dropdown-item" value="brainfuck">
 									<i class="fa-solid fa-brain"></i>
-									Brianfuck
+									Brainfuck
 								</a>
 							</div>
 						</div>
+
+						<div id="codelandTimeoutSelect" class="btn-group clodelandSettings" title="Max execution time">
+							<button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
+								<i class="fa-solid fa-clock"></i> 30s
+							</button>
+							<div class="dropdown-menu">
+								<a class="dropdown-item" value="10"><i class="fa-solid fa-clock"></i> 10s</a>
+								<a class="dropdown-item active" value="30"><i class="fa-solid fa-clock"></i> 30s</a>
+								<a class="dropdown-item" value="60"><i class="fa-solid fa-clock"></i> 60s</a>
+								<a class="dropdown-item" value="120"><i class="fa-solid fa-clock"></i> 120s</a>
+								<a class="dropdown-item" value=""><i class="fa-solid fa-infinity"></i> No limit</a>
+							</div>
+						</div>
+
+						<button id="stdinToggle" class="btn btn-outline-light btn-sm clodelandSettings" type="button" data-toggle="collapse" data-target="#stdinPanel" title="Provide stdin for this run">
+							<i class="fa-solid fa-keyboard"></i>
+							Stdin
+						</button>
+
+						<span class="form-check form-switch d-inline-block clodelandSettings keep-runner-switch">
+							<input class="form-check-input" type="checkbox" id="keepRunnerToggle" checked>
+							<label class="form-check-label small" for="keepRunnerToggle" title="Checked: reuse the same runner between runs. Unchecked: every run gets a fresh throwaway runner.">
+								Keep runner
+							</label>
+						</span>
 
 					<button id="execute" class="btn btn-outline-success btn-sm clodelandSettings">
 						<i class="fa-solid fa-play"></i>
 						Run
 					</button>
 				</div>
-				
+
 			</nav>
 
 			<div class="card-header actionMessage" style="display: none;"></div>
+			<div id="stdinPanel" class="collapse">
+				<textarea id="stdinInput" class="form-control" rows="2" placeholder="stdin for this run (optional)"></textarea>
+			</div>
 			<div class="card-body" style="padding: 0">
 				<div id="editor"></div>
 			</div>
-		
+
 		</div>
 	</div>
 
@@ -691,7 +929,7 @@ $(document).ready(function(){
 						</button>
 
 					</div>
-					
+
 				</nav>
 
 			<div class="card-body" style="padding: 0">
@@ -701,7 +939,7 @@ $(document).ready(function(){
 				<div id="codeland-tty" class="codeland-GUI"></div>
 
 			</div>
-		
+
 		</div>
 	</div>
 </div>
