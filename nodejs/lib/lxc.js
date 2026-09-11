@@ -251,14 +251,33 @@ class LXC{
 	/*
 		Start a persistent runner. The writable layer lives on shared NFS so
 		the runner can move between workers. If the runner already exists on
-		this worker (e.g. after a move), it is started in place.
+		this worker (e.g. after a move) but isn't running, it is started in
+		place.
+
+		Not idempotent to call blindly when it's already running, though:
+		lxc-start-persistent always ends with a plain `lxc-start`, which
+		errors on a container that's already up, and rewrites that
+		container's config (a fresh random MAC, etc.) on the way there --
+		observed in production leaving the running container's own on-disk
+		LXC definition gone while the container itself kept running under
+		the old config. Check state first and treat "already running" as
+		success instead of re-running the whole start script.
 	*/
 	async startPersistent(newName){
 		try{
-			let memLimit = this.memLimit ? this.constructor.parseMemLimit(this.memLimit) : '';
-			let res = await this.sysExec(
-				`python3 ~/.local/bin/lxc-start-persistent "${newName}" "${this.name}" "${memLimit}"`
-			);
+			let current = null;
+			try{
+				current = await new LXC({name: newName, execInstance: this.execInstance}).info();
+			}catch(error){
+				if(error.message !== 'ContainerDoesntExist') throw error;
+			}
+
+			if(!current || current.state !== 'RUNNING'){
+				let memLimit = this.memLimit ? this.constructor.parseMemLimit(this.memLimit) : '';
+				await this.sysExec(
+					`python3 ~/.local/bin/lxc-start-persistent "${newName}" "${this.name}" "${memLimit}"`
+				);
+			}
 
 			return new LXC({
 				name: newName,
@@ -292,6 +311,15 @@ class LXC{
 		Set a cgroup v2 memory limit on a running container. Accepts a number
 		of bytes or a human readable string like "512M" or "1G". Writes
 		directly to the live cgroup so it takes effect without a restart.
+
+		lxc-cgroup resolves the container's actual (deeply nested, uid- and
+		scope-specific under systemd) cgroup path itself and needs no sudo --
+		an unprivileged user already has write access to its own delegated
+		cgroup subtree. A prior version of this hand-rolled the path as
+		`/sys/fs/cgroup/lxc/${name}/memory.max` and shelled out through `sudo
+		tee`: that path doesn't exist under this host's systemd-managed
+		rootless cgroup v2 layout, and `sudo tee` was never in the runner
+		user's sudoers whitelist either, so every call silently failed.
 	*/
 	async setMemLimit(limit){
 		try{
@@ -299,7 +327,7 @@ class LXC{
 			if(!bytes) return;
 
 			await this.sysExec(
-				`echo ${bytes} | sudo tee /sys/fs/cgroup/lxc/${this.name}/memory.max > /dev/null`
+				`lxc-cgroup -n "${this.name}" memory.max ${bytes}`
 			);
 
 			return true;
