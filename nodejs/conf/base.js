@@ -35,6 +35,10 @@ module.exports = {
 		minAvailableRunners: 10,
 		domain: 'prod.718it.codeland.us',
 		memLimit: '512M',
+		// Persistent runners are a dedicated 1:1 resource per repo (real
+		// compile jobs), not a densely-packed shared pool slot -- give them
+		// real headroom instead of the ephemeral pool's per-slot cap.
+		persistentMemLimit: '4G',
 	},
 	// Additional worker hosts for persistent runner migration. The primary
 	// worker (conf.ssh.host) is always registered.

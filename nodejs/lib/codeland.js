@@ -147,7 +147,7 @@ class CodeLandWorker{
 		this.persistentTemplate = (this.persistentTemplateName === runnerTemplateName)
 			? this.runnerTemplate
 			: await LXC.get({ name: this.persistentTemplateName, execInstance: this.ssh });
-		this.persistentTemplate.memLimit = this.memLimit;
+		this.persistentTemplate.memLimit = this.persistentMemLimit;
 
 		let runner = await this.runnerTemplate.info()
 		setTimeout(()=> this.__log.call(this, 'init',{
@@ -188,6 +188,12 @@ class CodeLandWorker{
 		// Default per-runner memory limit (cgroup v2). Accepts bytes or a
 		// string like "512M". Undefined means no limit is applied.
 		this.memLimit = args.memLimit;
+
+		// Persistent runners are a dedicated, 1:1 resource per repo (real
+		// compile jobs, not a densely-packed shared pool), so they default
+		// to a much larger cap than the ephemeral pool's per-slot memLimit --
+		// falls back to memLimit if unset, matching prior behavior.
+		this.persistentMemLimit = args.persistentMemLimit || args.memLimit;
 
 		// How many runners should be created regardless of memory usage
 		this.minAvailableRunners = args.minAvailableRunners || 3;
