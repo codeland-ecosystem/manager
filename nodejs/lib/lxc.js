@@ -202,6 +202,65 @@ class LXC{
 		}
 	}
 
+	/*
+		Delete a file or directory (recursively) on the runner. Paths are
+		base64-carried into the remote shell and decoded into a variable
+		there rather than spliced directly into the command string -- worth
+		the extra care specifically here since this is the one file op that
+		can't be undone by re-running it.
+	*/
+	async deleteFile(path){
+		try{
+			const pathB64 = Buffer.from(path).toString('base64');
+			const cmd = `p=$(echo ${pathB64} | base64 --decode); rm -rf -- "$p"`;
+			const cmdB64 = Buffer.from(cmd).toString('base64');
+			await this.sysExec(
+				`~/.local/bin/lxc-attach -n "${this.name}" --clear-env -- bash -c 'echo "${cmdB64}" | base64 --decode | bash'`
+			);
+			return true;
+		}catch(error){
+			throw error;
+		}
+	}
+
+	/*
+		Rename or move a file/directory on the runner, creating the
+		destination's parent directory if needed. Overwrites an existing
+		file at `to` -- callers are expected to confirm that with the user
+		first, same as a normal desktop file manager would.
+	*/
+	async renameFile(from, to){
+		try{
+			const fromB64 = Buffer.from(from).toString('base64');
+			const toB64 = Buffer.from(to).toString('base64');
+			const cmd = `f=$(echo ${fromB64} | base64 --decode); t=$(echo ${toB64} | base64 --decode); mkdir -p "$(dirname "$t")" && mv -- "$f" "$t"`;
+			const cmdB64 = Buffer.from(cmd).toString('base64');
+			await this.sysExec(
+				`~/.local/bin/lxc-attach -n "${this.name}" --clear-env -- bash -c 'echo "${cmdB64}" | base64 --decode | bash'`
+			);
+			return true;
+		}catch(error){
+			throw error;
+		}
+	}
+
+	/*
+		Create a directory (and any missing parents) on the runner.
+	*/
+	async makeDir(path){
+		try{
+			const pathB64 = Buffer.from(path).toString('base64');
+			const cmd = `p=$(echo ${pathB64} | base64 --decode); mkdir -p -- "$p"`;
+			const cmdB64 = Buffer.from(cmd).toString('base64');
+			await this.sysExec(
+				`~/.local/bin/lxc-attach -n "${this.name}" --clear-env -- bash -c 'echo "${cmdB64}" | base64 --decode | bash'`
+			);
+			return true;
+		}catch(error){
+			throw error;
+		}
+	}
+
 	async info(){
 		try{
 			let info = {};

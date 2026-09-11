@@ -320,6 +320,42 @@ router.post('/:runner/files', async (req, res, next)=>{
   }
 });
 
+router.delete('/:runner/files', async (req, res, next)=>{
+  try{
+    const {worker, runner} = await workerManager.getRunnerAnywhere(req.params.runner);
+    const path = req.query.path;
+    if(!path) throw Object.assign(new Error('path is required'), {status: 400});
+    await runner.deleteFile(path);
+    return res.json({runner: runner.name, path, res: 'deleted'});
+  }catch(error){
+    next(error)
+  }
+});
+
+router.post('/:runner/files/rename', async (req, res, next)=>{
+  try{
+    const {worker, runner} = await workerManager.getRunnerAnywhere(req.params.runner);
+    const {from, to} = req.body;
+    if(!from || !to) throw Object.assign(new Error('from and to are required'), {status: 400});
+    await runner.renameFile(from, to);
+    return res.json({runner: runner.name, from, to, res: 'renamed'});
+  }catch(error){
+    next(error)
+  }
+});
+
+router.post('/:runner/files/mkdir', async (req, res, next)=>{
+  try{
+    const {worker, runner} = await workerManager.getRunnerAnywhere(req.params.runner);
+    const {path} = req.body;
+    if(!path) throw Object.assign(new Error('path is required'), {status: 400});
+    await runner.makeDir(path);
+    return res.json({runner: runner.name, path, res: 'created'});
+  }catch(error){
+    next(error)
+  }
+});
+
 router.get('/:runner', async (req, res, next)=>{
   try{
     const info = await workerManager.runnerInfoAnywhere(req.params.runner);

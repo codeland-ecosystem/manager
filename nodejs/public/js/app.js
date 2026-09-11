@@ -489,10 +489,22 @@ app.codeland = (function(app){
 		app.api.post(`runner/${name}/files`, {path, content}, callback);
 	}
 
+	function deleteFile(name, path, callback){
+		app.api.delete(`runner/${name}/files?path=${encodeURIComponent(path)}`, callback);
+	}
+
+	function renameFile(name, from, to, callback){
+		app.api.post(`runner/${name}/files/rename`, {from, to}, callback);
+	}
+
+	function makeDir(name, path, callback){
+		app.api.post(`runner/${name}/files/mkdir`, {path}, callback);
+	}
+
 	return {once, getRunner, call, kill, persistentRun, info, setRunner, newRunner,
 		makePersistent, runPersistent, stopPersistent, migratePersistent, listRegistry,
 		onceStructured, reserve, callStructured, sessionRunStructured,
-		listFiles, readFile, writeFile};
+		listFiles, readFile, writeFile, deleteFile, renameFile, makeDir};
 
 })(app);
 

@@ -77,6 +77,26 @@
 		display: flex;
 		flex-direction: column;
 	}
+
+	/* Bootstrap's .modal-body is flex: 1 1 auto by default, meant for a
+	   single body filling the modal. Each files-view has two stacked
+	   .modal-body's (controls, then the scrollable list/editor) -- without
+	   this, both grow evenly and the controls row eats space the
+	   list/editor should get. Only the second (.pt-0) one should grow. */
+	.files-view .modal-body.pb-0{
+		flex: 0 0 auto;
+	}
+
+	/* Bootstrap 4 doesn't bump a modal's z-index for nested/stacked modals
+	   (see getbootstrap.com/docs/4.6/components/modal, "Multiple modals").
+	   Rename/new-folder/the new-file overwrite check all open #promptModal
+	   or #confirmModal while #filesModal is still showing; without this
+	   they tie on the default z-index (1050) and #filesModal, being later
+	   in the DOM, paints over them -- the dialog is technically open and
+	   focused, just invisible. */
+	#promptModal, #confirmModal{
+		z-index: 1060;
+	}
 </style>
 
 <script type="text/javascript">
@@ -967,9 +987,9 @@ $(document).ready(function(){
 	</div>
 </div>
 
-<!-- Browse and edit files on the current runner (GET/POST /runner/:runner/files*).
-     A plain textarea, not Ace -- this is meant to be a crude but working file
-     manager, not a second full editor. -->
+<!-- Browse and edit files on the current runner (GET/POST/DELETE
+     /runner/:runner/files*). The editor is the same Ace instance the main
+     playground uses, so files get real syntax highlighting by extension. -->
 <div class="modal" id="filesModal" tabindex="-1" role="dialog" aria-hidden="true">
 	<div class="modal-dialog modal-lg" role="document">
 		<div class="modal-content" style="height: 70vh;">
@@ -984,6 +1004,9 @@ $(document).ready(function(){
 			<!-- Directory listing view -->
 			<div id="filesBrowseView" class="files-view" style="height: 100%; min-height: 0;">
 				<div class="modal-body pb-0">
+					<nav aria-label="breadcrumb" class="mb-1">
+						<ol class="breadcrumb mb-0 py-1 px-2" id="filesBreadcrumb" style="background: transparent;"></ol>
+					</nav>
 					<div class="input-group input-group-sm mb-2">
 						<div class="input-group-prepend">
 							<button id="filesUp" class="btn btn-outline-secondary" title="Up one directory">
@@ -1001,6 +1024,9 @@ $(document).ready(function(){
 					<ul class="list-group list-group-flush" id="filesList"></ul>
 				</div>
 				<div class="modal-footer">
+					<button id="filesNewFolder" class="btn btn-outline-secondary btn-sm">
+						<i class="fa-solid fa-folder-plus"></i> New folder
+					</button>
 					<button id="filesNew" class="btn btn-outline-success btn-sm">
 						<i class="fa-solid fa-file-circle-plus"></i> New file
 					</button>
@@ -1020,7 +1046,7 @@ $(document).ready(function(){
 					<code id="filesEditPath"></code>
 				</div>
 				<div class="modal-body pt-0" style="flex: 1 1 auto; min-height: 0;">
-					<textarea id="filesEditContent" class="form-control" style="height: 100%; font-family: monospace; font-size: 13px;"></textarea>
+					<div id="filesEditAce" style="height: 100%; font-size: 13px;"></div>
 				</div>
 				<div class="modal-footer">
 					<div id="filesEditStatus" class="small mr-auto" style="display:none;"></div>
@@ -1037,6 +1063,8 @@ $(document).ready(function(){
 (function(){
 	let filesCurrentDir = '/tmp';
 	let filesEditingPath = null;
+	let filesCurrentEntries = [];
+	let filesEditor = null;
 
 	function filesNormalizePath(path){
 		const parts = path.split('/').filter(Boolean);
@@ -1074,12 +1102,68 @@ $(document).ready(function(){
 			.fadeOut();
 	}
 
+	/*
+		Built lazily on first use -- the browse view is what's shown by
+		default, so there's no reason to pay Ace's init cost until a file is
+		actually opened.
+	*/
+	function filesGetEditor(){
+		if(filesEditor) return filesEditor;
+		filesEditor = ace.edit('filesEditAce');
+		filesEditor.setTheme('ace/theme/monokai');
+		filesEditor.setFontSize(13);
+		return filesEditor;
+	}
+
+	// modelist maps a filename to the right ace/mode/* by extension. This
+	// build of ace.js only bundles its core -- ace.require() (used for
+	// ace/ext/language_tools above) only resolves modules already loaded,
+	// so it silently hands back undefined for anything not already on the
+	// page. ace.config.loadModule is the one that actually fetches a
+	// sibling ext-*.js on demand (the same mechanism setMode()/setTheme()
+	// already use for modes/themes).
+	function filesSetModeForPath(path){
+		const editor = filesGetEditor();
+		ace.config.loadModule('ace/ext/modelist', function(modelist){
+			editor.getSession().setMode(modelist.getModeForPath(path).mode);
+		});
+	}
+
 	function filesShowEdit(path){
 		filesEditingPath = path;
 		$('#filesEditPath').text(path);
 		$('#filesEditStatus').hide();
 		$('#filesBrowseView').hide();
 		$('#filesEditView').show();
+		filesSetModeForPath(path);
+		// Ace only measures its container correctly once it's visible.
+		setTimeout(function(){ filesGetEditor().resize(); }, 0);
+	}
+
+	function filesRenderBreadcrumbs(dir){
+		const $bc = $('#filesBreadcrumb').empty();
+		const parts = dir.split('/').filter(Boolean);
+
+		const $root = $('<li class="breadcrumb-item"><i class="fa-solid fa-server"></i></li>');
+		if(parts.length){
+			$root.css('cursor', 'pointer').on('click', function(){ filesLoad('/'); });
+		}else{
+			$root.addClass('active');
+		}
+		$bc.append($root);
+
+		let built = '';
+		parts.forEach(function(part, idx){
+			built = filesJoin(built, part);
+			const target = built;
+			const $li = $('<li class="breadcrumb-item"></li>').text(part);
+			if(idx < parts.length - 1){
+				$li.css('cursor', 'pointer').on('click', function(){ filesLoad(target); });
+			}else{
+				$li.addClass('active');
+			}
+			$bc.append($li);
+		});
 	}
 
 	function filesLoad(dir){
@@ -1089,6 +1173,7 @@ $(document).ready(function(){
 		dir = filesNormalizePath(dir);
 		filesCurrentDir = dir;
 		$('#filesPath').val(dir);
+		filesRenderBreadcrumbs(dir);
 		$('#filesList').empty();
 		$('#filesListStatus').text('Loading...');
 
@@ -1100,6 +1185,7 @@ $(document).ready(function(){
 			$('#filesListStatus').text('');
 
 			const entries = (data.files || []).filter(f => f.name !== '.' && f.name !== '..');
+			filesCurrentEntries = entries;
 			if(!entries.length){
 				$('#filesListStatus').text('Empty directory.');
 			}
@@ -1108,22 +1194,65 @@ $(document).ready(function(){
 			entries.sort((a, b) => (a.type === b.type) ? a.name.localeCompare(b.name) : (a.type === 'dir' ? -1 : 1));
 
 			for(const entry of entries){
+				const path = filesJoin(dir, entry.name);
 				const icon = entry.type === 'dir' ? 'fa-folder text-warning' : 'fa-file text-light';
-				const sizeLabel = entry.type === 'dir' ? '' : `<span class="text-muted small">${entry.size} B</span>`;
+				const sizeLabel = entry.type === 'dir' ? '' : `<span class="text-muted small mr-2">${entry.size} B</span>`;
 				const $row = $(`<li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" style="cursor:pointer;">
-					<span><i class="fa-solid ${icon}"></i> ${$('<div>').text(entry.name).html()}</span>
-					${sizeLabel}
+					<span class="text-truncate"><i class="fa-solid ${icon}"></i> ${$('<div>').text(entry.name).html()}</span>
+					<span class="d-flex align-items-center flex-shrink-0">
+						${sizeLabel}
+						<button class="btn btn-sm btn-outline-secondary py-0 px-1 mr-1 files-rename" title="Rename"><i class="fa-solid fa-pen"></i></button>
+						<button class="btn btn-sm btn-outline-danger py-0 px-1 files-delete" title="Delete"><i class="fa-solid fa-trash"></i></button>
+					</span>
 				</li>`);
 				$row.on('click', function(){
-					const path = filesJoin(dir, entry.name);
-					if(entry.type === 'dir'){
-						filesLoad(path);
-					}else{
-						filesOpen(path);
-					}
+					if(entry.type === 'dir') filesLoad(path);
+					else filesOpen(path);
+				});
+				$row.find('.files-rename').on('click', function(e){
+					e.stopPropagation();
+					filesRename(dir, entry, path);
+				});
+				$row.find('.files-delete').on('click', function(e){
+					e.stopPropagation();
+					filesDelete(entry, path);
 				});
 				$('#filesList').append($row);
 			}
+		});
+	}
+
+	function filesRename(dir, entry, path){
+		app.util.promptModal({title: 'Rename ' + entry.name, value: entry.name}, function(name){
+			if(!name || name === entry.name) return;
+			const dest = filesJoin(dir, name);
+			const doRename = function(){
+				app.codeland.renameFile(app.codeland.getRunner().name, path, dest, function(err, data){
+					if(err){
+						$('#filesListStatus').text((data && data.message) || err.message || err);
+						return;
+					}
+					filesLoad(dir);
+				});
+			};
+			if(filesCurrentEntries.some(e => e.name === name)){
+				app.util.confirmModal(`"${name}" already exists in this directory. Overwrite it?`, doRename);
+			}else{
+				doRename();
+			}
+		});
+	}
+
+	function filesDelete(entry, path){
+		const what = entry.type === 'dir' ? 'folder (and everything inside it)' : 'file';
+		app.util.confirmModal(`Delete ${what} "${entry.name}"? This can't be undone.`, function(){
+			app.codeland.deleteFile(app.codeland.getRunner().name, path, function(err, data){
+				if(err){
+					$('#filesListStatus').text((data && data.message) || err.message || err);
+					return;
+				}
+				filesLoad(filesCurrentDir);
+			});
 		});
 	}
 
@@ -1132,16 +1261,17 @@ $(document).ready(function(){
 		if(!runner.name) return;
 
 		filesShowEdit(path);
-		$('#filesEditContent').val('Loading...').prop('disabled', true);
+		const editor = filesGetEditor();
+		editor.setValue('', -1);
+		editor.setReadOnly(true);
 
 		app.codeland.readFile(runner.name, path, function(err, data){
-			$('#filesEditContent').prop('disabled', false);
+			editor.setReadOnly(false);
 			if(err){
-				$('#filesEditContent').val('');
 				filesEditStatus((data && data.message) || err.message || err, 'danger');
 				return;
 			}
-			$('#filesEditContent').val(data.content || '');
+			editor.setValue(data.content || '', -1);
 		});
 	}
 
@@ -1149,7 +1279,7 @@ $(document).ready(function(){
 		const runner = app.codeland.getRunner();
 		if(!runner.name || !filesEditingPath) return;
 
-		const content = $('#filesEditContent').val();
+		const content = filesGetEditor().getValue();
 		app.codeland.writeFile(runner.name, filesEditingPath, content, function(err, data){
 			if(err){
 				filesEditStatus((data && data.message) || err.message || err, 'danger');
@@ -1179,11 +1309,31 @@ $(document).ready(function(){
 		$('#filesPath').on('keydown', function(e){ if(e.key === 'Enter') filesLoad($(this).val()); });
 		$('#filesUp').on('click', function(){ filesLoad(filesJoin(filesCurrentDir, '..')); });
 
+		$('#filesNewFolder').on('click', function(){
+			app.util.promptModal({title: 'New folder name', placeholder: 'relative to ' + filesCurrentDir}, function(name){
+				if(!name) return;
+				app.codeland.makeDir(app.codeland.getRunner().name, filesJoin(filesCurrentDir, name), function(err, data){
+					if(err){
+						$('#filesListStatus').text((data && data.message) || err.message || err);
+						return;
+					}
+					filesLoad(filesCurrentDir);
+				});
+			});
+		});
+
 		$('#filesNew').on('click', function(){
 			app.util.promptModal({title: 'New file name', placeholder: 'relative to ' + filesCurrentDir}, function(name){
 				if(!name) return;
-				filesShowEdit(filesJoin(filesCurrentDir, name));
-				$('#filesEditContent').val('');
+				const openNew = function(){
+					filesShowEdit(filesJoin(filesCurrentDir, name));
+					filesGetEditor().setValue('', -1);
+				};
+				if(filesCurrentEntries.some(e => e.name === name && e.type !== 'dir')){
+					app.util.confirmModal(`"${name}" already exists. Overwrite it?`, openNew);
+				}else{
+					openNew();
+				}
 			});
 		});
 
