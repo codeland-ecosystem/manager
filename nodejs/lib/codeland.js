@@ -530,7 +530,7 @@ class CodeLandWorker{
 	/*
 		Once a runner is not longer needed, clean up any attached timers and
 		free its resources. runnerOven is called to make check if a
-		replenishment is required 
+		replenishment is required
 	*/
 	async runnerFree(runner, callOven=true){
 		this.__runnerSetStatus(runner, 'free')
@@ -542,7 +542,20 @@ class CodeLandWorker{
 			}
 			if(!(runner instanceof LXC)) throw new Error('runnerNotLXC');
 
-			await runner.destroyEphemeral(name);
+			// A persistent runner's rootfs lives on NFS via `dir:` storage, so
+			// destroyEphemeral's `lxc-destroy -f` wipes its actual state --
+			// but leaves the `.provisioned` marker (a sibling of rootfs/, not
+			// inside it) untouched, so the next create silently skips
+			// re-provisioning onto the now-empty rootfs and the container
+			// fails to start ("Failed to exec /sbin/init"). Route persistent
+			// runners through the same non-destructive stop already used by
+			// runnerMakePersistent's own cleanup, and leave their NFS state
+			// alone.
+			if(runner.persistent){
+				await runner.stopPersistent();
+			}else{
+				await runner.destroyEphemeral(name);
+			}
 		}catch(error){
 			this.__runnerSetStatus(name, 'free:error', {error})
 		}
